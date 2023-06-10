@@ -1,0 +1,53 @@
+# CMakeList.txt : CMake project for vulkan_guide, include source and define
+# project specific logic here.
+#
+cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
+
+project(LumiEngine VERSION 0.0.1)
+message(STATUS "${CMAKE_PROJECT_NAME} v${CMAKE_PROJECT_VERSION}")
+
+# =============== Prevent in-source builds ====================
+if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
+    message(
+        FATAL_ERROR
+        "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there."
+    )
+endif()
+
+# ==================== Options =========================
+# build test option
+# option(LUMI_BUILD_TEST "Build test" OFF)
+
+# ==================== Path Variables ====================
+set(LUMI_ROOT_DIR        ${CMAKE_CURRENT_SOURCE_DIR})
+set(LUMI_THIRDPARTY_DIR  ${LUMI_ROOT_DIR}/thirdparty)
+set(LUMI_ASSETS_DIR      ${LUMI_ROOT_DIR}/assets)
+set(LUMI_SHADERS_DIR     ${LUMI_ROOT_DIR}/shaders)
+set(LUMI_SOURCE_DIR      ${LUMI_ROOT_DIR}/src)
+
+# ==================== Global settings ====================
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/MP>)
+add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+
+set(BUILD_SHARED_LIBS OFF)
+set(CMAKE_INSTALL_PREFIX ${LUMI_ROOT_DIR}/install)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# Group targets by folders in IDE
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+# Global macros
+add_compile_definitions(LUMI_VERSION="${CMAKE_PROJECT_VERSION}")
+add_compile_definitions(LUMI_ROOT_DIR="${LUMI_ROOT_DIR}")
+add_compile_definitions(LUMI_ASSETS_DIR="${LUMI_ASSETS_DIR}")
+add_compile_definitions(NOMINMAX)
+
+# ==================== sub directories ====================
+add_subdirectory(thirdparty)
+
+# add_subdirectory(shaders)
+add_subdirectory(src)

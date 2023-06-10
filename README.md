@@ -11,6 +11,7 @@ A simple Vulkan renderer.
 ## Prerequisites
 - Visual Studio >= 2019
 - CMake >= 3.20
+- Vulkan SDK >= 1.3.250.0
 
 ## Build
 

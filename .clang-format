@@ -1,0 +1,11 @@
+BasedOnStyle: Google
+IndentWidth: 4
+ReflowComments: false
+AccessModifierOffset: -4
+FixNamespaceComments: true
+KeepEmptyLinesAtTheStartOfBlocks: true
+
+AlignConsecutiveAssignments: Consecutive
+AlignConsecutiveMacros: Consecutive
+AlignConsecutiveDeclarations: Consecutive
+AlignTrailingComments: true
