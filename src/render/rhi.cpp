@@ -8,6 +8,7 @@ void VulkanRHI::Init(InitInfo init_info) {
     InitDefaultRenderPass();
     InitFrameBuffers();
     InitSyncStructures();
+    InitPipelines();
 }
 
 void VulkanRHI::InitVulkan(fCreateSurface CreateSurface) {
@@ -81,7 +82,7 @@ void VulkanRHI::InitVulkan(fCreateSurface CreateSurface) {
         vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
     
 
-    destruction_queue_default_.push([=]() {
+    destruction_queue_default_.Push([=]() {
         vkDestroyDevice(device_, nullptr);
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
         vkb::destroy_debug_utils_messenger(instance_, debug_messenger_);
@@ -111,7 +112,7 @@ void VulkanRHI::InitSwapchain(const int width, const int height) {
     swapchain_image_views_  = vkbSwapchain.get_image_views().value();
     swapchain_image_format_ = vkbSwapchain.image_format;
 
-    destruction_queue_swapchain_.push([=]() {
+    destruction_queue_swapchain_.Push([=]() {
         vkDestroySwapchainKHR(device_, swapchain_, nullptr);
     });
 }
@@ -129,7 +130,7 @@ void VulkanRHI::InitCommands() {
     VK_CHECK(vkAllocateCommandBuffers(device_, &cmdAllocInfo,
                                       &main_command_buffer_));
 
-    destruction_queue_default_.push(
+    destruction_queue_default_.Push(
         [=]() { vkDestroyCommandPool(device_, command_pool_, nullptr); });
 }
 
@@ -167,21 +168,14 @@ void VulkanRHI::InitDefaultRenderPass() {
     VK_CHECK(
         vkCreateRenderPass(device_, &render_pass_info, nullptr, &render_pass_));
 
-    destruction_queue_default_.push(
+    destruction_queue_default_.Push(
         [=]() { vkDestroyRenderPass(device_, render_pass_, nullptr); });
 }
 
 void VulkanRHI::InitFrameBuffers() {
     // Create the framebuffers for the swapchain images. 
     // This will connect the render-pass to the images for rendering
-    VkFramebufferCreateInfo fb_info{};
-    fb_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    fb_info.pNext           = nullptr;
-    fb_info.renderPass      = render_pass_;
-    fb_info.attachmentCount = 1;
-    fb_info.width           = window_extent_.width;
-    fb_info.height          = window_extent_.height;
-    fb_info.layers          = 1;
+    auto fb_info = vk::BuildFramebufferCreateInfo(render_pass_, window_extent_);
 
     // grab how many images we have in the swapchain
     const size_t swapchain_imagecount = swapchain_images_.size();
@@ -192,47 +186,116 @@ void VulkanRHI::InitFrameBuffers() {
         VK_CHECK(vkCreateFramebuffer(device_, &fb_info, nullptr,
                                      &frame_buffers_[i]));
 
-        destruction_queue_swapchain_.push([=]() {
+        destruction_queue_swapchain_.Push([=]() {
             vkDestroyFramebuffer(device_, frame_buffers_[i], nullptr);
             vkDestroyImageView(device_, swapchain_image_views_[i], nullptr);
         });
     }
-
-    
 }
 
 void VulkanRHI::InitSyncStructures() {
     // Create synchronization structures
     // we want to create the fence with the Create Signaled flag,
     // so we can wait on it before using it on a GPU command (for the first frame)
-    VkFenceCreateInfo fenceCreateInfo{};
-    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceCreateInfo.pNext = nullptr;
-    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    auto fenceCreateInfo =
+        vk::BuildFenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
     VK_CHECK(vkCreateFence(device_, &fenceCreateInfo, nullptr, &render_fence_));
 
     // for the semaphores we don't need any flags
-    VkSemaphoreCreateInfo semaphoreCreateInfo{};
-    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-    semaphoreCreateInfo.pNext = nullptr;
-    semaphoreCreateInfo.flags = 0;
+    auto semaphoreCreateInfo = vk::BuildSemaphoreCreateInfo();
     VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
                                &present_semaphore_));
     VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
                                &render_semaphore_));
 
-    destruction_queue_default_.push([=]() {
+    destruction_queue_default_.Push([=]() {
         vkDestroyFence(device_, render_fence_, nullptr);
         vkDestroySemaphore(device_, present_semaphore_, nullptr);
         vkDestroySemaphore(device_, render_semaphore_, nullptr);
     });
 }
 
+void VulkanRHI::InitPipelines() {
+    VkShaderModule triangleFragShader;
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/triangle.frag.spv",
+                          &triangleFragShader)) {
+        LOG_ERROR("Error when building the triangle fragment shader module");
+    } else {
+        LOG_INFO("Triangle fragment shader successfully loaded");
+    }
+
+    VkShaderModule triangleVertexShader;
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/triangle.vert.spv",
+                          &triangleVertexShader)) {
+        LOG_ERROR("Error when building the triangle vertex shader module");
+
+    } else {
+        LOG_INFO("Triangle vertex shader successfully loaded");
+    }
+
+    // build the pipeline layout that controls the inputs/outputs of the shader
+    // we are not using descriptor sets or other systems yet, 
+    // so no need to use anything other than empty default
+    auto pipeline_layout_info = vk::BuildPipelineLayoutCreateInfo();
+    VK_CHECK(vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr,
+                                    &triangle_pipeline_layout_));
+    
+    // build the stage-create-info for both vertex and fragment stages.
+    // This lets the pipeline know the shader modules per stage
+    vk::PipelineBuilder pipeline_builder{};
+
+    pipeline_builder.shader_stages.push_back(
+        vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,
+                                               triangleVertexShader));
+    pipeline_builder.shader_stages.push_back(
+        vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               triangleFragShader));
+    // vertex input controls how to read vertices from vertex buffers.
+    // We aren't using it yet
+    pipeline_builder.vertex_input_info = vk::BuildVertexInputStateCreateInfo();
+    // input assembly is the configuration for
+    // drawing triangle lists, strips, or individual points.
+    // we are just going to draw triangle list
+    pipeline_builder.input_assembly =
+        vk::BuildInputAssemblyCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+    // build viewport and scissor from the swapchain extents
+    pipeline_builder.viewport.x        = 0.0f;
+    pipeline_builder.viewport.y        = 0.0f;
+    pipeline_builder.viewport.width    = (float)window_extent_.width;
+    pipeline_builder.viewport.height   = (float)window_extent_.height;
+    pipeline_builder.viewport.minDepth = 0.0f;
+    pipeline_builder.viewport.maxDepth = 1.0f;
+    pipeline_builder.scissor.offset    = {0, 0};
+    pipeline_builder.scissor.extent    = window_extent_;
+    // configure the rasterizer to draw filled triangles
+    pipeline_builder.rasterizer =
+        vk::BuildRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL);
+    // we don't use multisampling, so just run the default one
+    pipeline_builder.multisample = vk::BuildMultisampleStateCreateInfo();
+    // a single blend attachment with no blending and writing to RGBA
+    pipeline_builder.color_blend_attachment =
+        vk::BuildColorBlendAttachmentState();
+    // use the triangle layout we created
+    pipeline_builder.pipeline_layout = triangle_pipeline_layout_;
+
+    // finally build the pipeline
+    triangle_pipeline_ = pipeline_builder.Build(device_, render_pass_);
+
+    //destroy all shader modules, outside of the queue
+    vkDestroyShaderModule(device_, triangleFragShader, nullptr);
+    vkDestroyShaderModule(device_, triangleVertexShader, nullptr);
+
+    destruction_queue_default_.Push([=]() {
+        vkDestroyPipeline(device_, triangle_pipeline_, nullptr);
+        vkDestroyPipelineLayout(device_, triangle_pipeline_layout_, nullptr);
+    });
+}
+
 void VulkanRHI::Finalize() {
     // make sure the GPU has stopped doing its things
     vkWaitForFences(device_, 1, &render_fence_, true, kTimeout);
-    destruction_queue_swapchain_.flush();
-    destruction_queue_default_.flush();
+    destruction_queue_swapchain_.Flush();
+    destruction_queue_default_.Flush();
 }
 
 void VulkanRHI::Draw() {
@@ -283,6 +346,12 @@ void VulkanRHI::Draw() {
     vkCmdBeginRenderPass(main_command_buffer_, &rpInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
+
+    vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      triangle_pipeline_);
+    vkCmdDraw(main_command_buffer_, 3, 1, 0, 0);
+
+
     vkCmdEndRenderPass(main_command_buffer_);
     VK_CHECK(vkEndCommandBuffer(main_command_buffer_));
 
@@ -322,6 +391,45 @@ void VulkanRHI::Draw() {
 
     // increase the number of frames drawn
     _frame_number++;
+}
+
+bool VulkanRHI::LoadShaderModule(const char*     filepath,
+                                 VkShaderModule* out_shader_module) {
+    auto shader_file =
+        std::ifstream(filepath, std::ios::ate | std::ios::binary);
+    if (!shader_file.is_open()) {
+        return false;
+    }
+    // find what the size of the file is by looking up the location of the cursor
+    // because the cursor is at the end, it gives the size directly in bytes
+    size_t fileSize = (size_t)shader_file.tellg();
+    // spirv expects the buffer to be on uint32,
+    // so make sure to reserve an int vector big enough for the entire file
+    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+    // put file cursor at beginning
+    shader_file.seekg(0);
+    // load the entire file into the buffer
+    shader_file.read((char*)buffer.data(), fileSize);
+    // now that the file is loaded into the buffer, we can close it
+    shader_file.close();
+
+    // create a new shader module, using the buffer we loaded
+    VkShaderModuleCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.pNext = nullptr;
+
+    //codeSize has to be in bytes, so multiply the ints in the buffer by size of int to know the real size of the buffer
+    createInfo.codeSize = buffer.size() * sizeof(uint32_t);
+    createInfo.pCode    = buffer.data();
+
+    //check that the creation goes well.
+    VkShaderModule shaderModule;
+    if (vkCreateShaderModule(device_, &createInfo, nullptr, &shaderModule) !=
+        VK_SUCCESS) {
+        return false;
+    }
+    *out_shader_module = shaderModule;
+    return true;
 }
 
 }  // namespace lumi

@@ -25,6 +25,7 @@ source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
 foreach(GLSL_SOURCE ${GLSL_SOURCE_FILES})
   string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "${LUMI_SHADERS_COMPILED_DIR}" 
                  GLSL_COMPILED ${GLSL_SOURCE})
+  set(GLSL_COMPILED ${GLSL_COMPILED}.spv)
   # message(STATUS "${GLSL_COMPILED}")
 
   ## execute glslang command to compile that specific shader

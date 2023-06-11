@@ -6,6 +6,9 @@ namespace lumi {
 
 class VulkanRHI {
 private:
+    vk::DestructionQueue destruction_queue_default_{};
+    vk::DestructionQueue destruction_queue_swapchain_{};
+
     VkInstance               instance_{};         // Vulkan library handle
     VkDebugUtilsMessengerEXT debug_messenger_{};  // Vulkan debug output handle
     VkPhysicalDevice physical_device_{};  // GPU chosen as the default device
@@ -26,13 +29,13 @@ private:
     VkRenderPass               render_pass_{};
     std::vector<VkFramebuffer> frame_buffers_{};
 
-    constexpr static uint64_t kTimeout = 1000000000ui64; // Timeout of 1 second
+    constexpr static uint64_t kTimeout = 1000000000ui64;  // Timeout of 1 second
     VkSemaphore               present_semaphore_{};
     VkSemaphore               render_semaphore_{};
     VkFence                   render_fence_{};
 
-    vk::DestructionQueue destruction_queue_default_{};
-    vk::DestructionQueue destruction_queue_swapchain_{};
+    VkPipelineLayout triangle_pipeline_layout_{};
+    VkPipeline       triangle_pipeline_{};
 
 public:
     using fCreateSurface = std::function<VkResult(VkInstance, VkSurfaceKHR*)>;
@@ -48,6 +51,9 @@ public:
 
     void Draw();
 
+    bool LoadShaderModule(const char*     filepath,
+                          VkShaderModule* out_shader_module);
+
 private:
     void InitVulkan(fCreateSurface CreateSurface);
     void InitSwapchain(const int width, const int height);
@@ -55,6 +61,7 @@ private:
     void InitDefaultRenderPass();
     void InitFrameBuffers();
     void InitSyncStructures();
+    void InitPipelines();
 };
 
 }  // namespace lumi
