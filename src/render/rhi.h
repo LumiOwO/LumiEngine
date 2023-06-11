@@ -1,8 +1,5 @@
 #pragma once
 
-#include <functional>
-#include <vector>
-
 #include "vulkan_utils.h"
 
 namespace lumi {
@@ -29,9 +26,13 @@ private:
     VkRenderPass               render_pass_{};
     std::vector<VkFramebuffer> frame_buffers_{};
 
-    VkSemaphore present_semaphore_{};
-    VkSemaphore render_semaphore_{};
-    VkFence     render_fence_{};
+    constexpr static uint64_t kTimeout = 1000000000ui64; // Timeout of 1 second
+    VkSemaphore               present_semaphore_{};
+    VkSemaphore               render_semaphore_{};
+    VkFence                   render_fence_{};
+
+    vk::DestructionQueue destruction_queue_default_{};
+    vk::DestructionQueue destruction_queue_swapchain_{};
 
 public:
     using fCreateSurface = std::function<VkResult(VkInstance, VkSurfaceKHR*)>;

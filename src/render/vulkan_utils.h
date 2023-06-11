@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <vector>
+
 #include "core/log.h"
 #include "vulkan/vulkan.h"
 
@@ -40,6 +43,24 @@ inline VkCommandBufferAllocateInfo BuildCommandBufferAllocateInfo(
     info.level              = level;
     return info;
 }
+
+// class for destroying vulkan resources
+class DestructionQueue {
+private:
+    std::vector<std::function<void()>> destructors_{};
+
+public:
+    void push(std::function<void()>&& destructor) {
+        destructors_.emplace_back(destructor);
+    }
+
+    void flush() {
+        for (auto it = destructors_.rbegin(); it != destructors_.rend(); it++) {
+            (*it)();
+        }
+        destructors_.clear();
+    }
+};
 
 }  // namespace vk
 

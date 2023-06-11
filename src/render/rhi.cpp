@@ -20,9 +20,7 @@ void VulkanRHI::InitVulkan(fCreateSurface CreateSurface) {
                         .use_default_debug_messenger()
                         .build()
                         .value();
-    // store the instance
     instance_ = vkb_inst.instance;
-    // store the debug messenger
     debug_messenger_ = vkb_inst.debug_messenger;
 
     // create the surface of the window
@@ -74,8 +72,6 @@ void VulkanRHI::InitVulkan(fCreateSurface CreateSurface) {
     // create the final Vulkan device
     vkb::DeviceBuilder deviceBuilder{physicalDevice};
     vkb::Device vkbDevice = deviceBuilder.build().value();
-
-    // Get the VkDevice handle used in the rest of a Vulkan application
     device_          = vkbDevice.device;
     physical_device_ = physicalDevice.physical_device;
 
@@ -83,6 +79,14 @@ void VulkanRHI::InitVulkan(fCreateSurface CreateSurface) {
     graphics_queue_ = vkbDevice.get_queue(vkb::QueueType::graphics).value();
     graphics_queue_family_ =
         vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
+    
+
+    destruction_queue_default_.push([=]() {
+        vkDestroyDevice(device_, nullptr);
+        vkDestroySurfaceKHR(instance_, surface_, nullptr);
+        vkb::destroy_debug_utils_messenger(instance_, debug_messenger_);
+        vkDestroyInstance(instance_, nullptr);
+    });
 }
 
 void VulkanRHI::InitSwapchain(const int width, const int height) {
@@ -106,6 +110,10 @@ void VulkanRHI::InitSwapchain(const int width, const int height) {
     swapchain_images_       = vkbSwapchain.get_images().value();
     swapchain_image_views_  = vkbSwapchain.get_image_views().value();
     swapchain_image_format_ = vkbSwapchain.image_format;
+
+    destruction_queue_swapchain_.push([=]() {
+        vkDestroySwapchainKHR(device_, swapchain_, nullptr);
+    });
 }
 
 void VulkanRHI::InitCommands() {
@@ -120,6 +128,9 @@ void VulkanRHI::InitCommands() {
     auto cmdAllocInfo = vk::BuildCommandBufferAllocateInfo(command_pool_, 1);
     VK_CHECK(vkAllocateCommandBuffers(device_, &cmdAllocInfo,
                                       &main_command_buffer_));
+
+    destruction_queue_default_.push(
+        [=]() { vkDestroyCommandPool(device_, command_pool_, nullptr); });
 }
 
 void VulkanRHI::InitDefaultRenderPass() {
@@ -155,6 +166,9 @@ void VulkanRHI::InitDefaultRenderPass() {
     render_pass_info.pSubpasses      = &subpass;
     VK_CHECK(
         vkCreateRenderPass(device_, &render_pass_info, nullptr, &render_pass_));
+
+    destruction_queue_default_.push(
+        [=]() { vkDestroyRenderPass(device_, render_pass_, nullptr); });
 }
 
 void VulkanRHI::InitFrameBuffers() {
@@ -177,7 +191,14 @@ void VulkanRHI::InitFrameBuffers() {
         fb_info.pAttachments = &swapchain_image_views_[i];
         VK_CHECK(vkCreateFramebuffer(device_, &fb_info, nullptr,
                                      &frame_buffers_[i]));
+
+        destruction_queue_swapchain_.push([=]() {
+            vkDestroyFramebuffer(device_, frame_buffers_[i], nullptr);
+            vkDestroyImageView(device_, swapchain_image_views_[i], nullptr);
+        });
     }
+
+    
 }
 
 void VulkanRHI::InitSyncStructures() {
@@ -199,43 +220,31 @@ void VulkanRHI::InitSyncStructures() {
                                &present_semaphore_));
     VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
                                &render_semaphore_));
+
+    destruction_queue_default_.push([=]() {
+        vkDestroyFence(device_, render_fence_, nullptr);
+        vkDestroySemaphore(device_, present_semaphore_, nullptr);
+        vkDestroySemaphore(device_, render_semaphore_, nullptr);
+    });
 }
 
 void VulkanRHI::Finalize() {
-    vkDestroySemaphore(device_, render_semaphore_, nullptr);
-    vkDestroySemaphore(device_, present_semaphore_, nullptr);
-    vkDestroyFence(device_, render_fence_, nullptr);
-
-    for (auto& frame_buffer : frame_buffers_) {
-        vkDestroyFramebuffer(device_, frame_buffer, nullptr);
-    }
-
-    vkDestroyRenderPass(device_, render_pass_, nullptr);
-
-    vkDestroyCommandPool(device_, command_pool_, nullptr);
-
-    for (auto& image_view : swapchain_image_views_) {
-        vkDestroyImageView(device_, image_view, nullptr);
-    }
-    vkDestroySwapchainKHR(device_, swapchain_, nullptr);
-
-    vkDestroyDevice(device_, nullptr);
-    vkDestroySurfaceKHR(instance_, surface_, nullptr);
-    vkb::destroy_debug_utils_messenger(instance_, debug_messenger_);
-    vkDestroyInstance(instance_, nullptr);
+    // make sure the GPU has stopped doing its things
+    vkWaitForFences(device_, 1, &render_fence_, true, kTimeout);
+    destruction_queue_swapchain_.flush();
+    destruction_queue_default_.flush();
 }
 
 void VulkanRHI::Draw() {
     static int _frame_number = 0;
 
-    // wait until the GPU has finished rendering the last frame. Timeout of 1 second
-    constexpr uint64_t timeout = 1000000000ui64;
-    VK_CHECK(vkWaitForFences(device_, 1, &render_fence_, true, timeout));
+    // wait until the GPU has finished rendering the last frame.
+    VK_CHECK(vkWaitForFences(device_, 1, &render_fence_, true, kTimeout));
     VK_CHECK(vkResetFences(device_, 1, &render_fence_));
 
     // request image from the swapchain
     uint32_t swapchainImageIndex;
-    VK_CHECK(vkAcquireNextImageKHR(device_, swapchain_, timeout,
+    VK_CHECK(vkAcquireNextImageKHR(device_, swapchain_, kTimeout,
                                    present_semaphore_, nullptr,
                                    &swapchainImageIndex));
 
