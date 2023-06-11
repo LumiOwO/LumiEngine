@@ -16,7 +16,8 @@ endif()
 
 # ==================== Options =========================
 # build test option
-# option(LUMI_BUILD_TEST "Build test" OFF)
+option(LUMI_FORCE_ASSERT "Force assert in release mode" ON)
+option(LUMI_ENABLE_DEBUG_LOG "Enable debug level logging" ON)
 
 # ==================== Path Variables ====================
 set(LUMI_ROOT_DIR        ${CMAKE_CURRENT_SOURCE_DIR})
@@ -30,6 +31,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/MP>)
 add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/utf-8>)
+add_compile_options($<$<CXX_COMPILER_ID:MSVC>:/wd26812>)
 
 set(BUILD_SHARED_LIBS OFF)
 set(CMAKE_INSTALL_PREFIX ${LUMI_ROOT_DIR}/install)
@@ -42,9 +44,17 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Global macros
 add_compile_definitions(LUMI_VERSION="${CMAKE_PROJECT_VERSION}")
+add_compile_definitions(LUMI_ENGINE_NAME="${CMAKE_PROJECT_NAME}")
 add_compile_definitions(LUMI_ROOT_DIR="${LUMI_ROOT_DIR}")
 add_compile_definitions(LUMI_ASSETS_DIR="${LUMI_ASSETS_DIR}")
 add_compile_definitions(NOMINMAX)
+
+if(LUMI_FORCE_ASSERT)
+    add_compile_definitions(LUMI_FORCE_ASSERT)
+endif()
+if(LUMI_ENABLE_DEBUG_LOG)
+    add_compile_definitions(LUMI_ENABLE_DEBUG_LOG)
+endif()
 
 # ==================== sub directories ====================
 add_subdirectory(thirdparty)

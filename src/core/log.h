@@ -7,10 +7,10 @@
 #pragma warning(push, 0)
 #pragma warning(disable : 6285 6385 26812 26451 26498 26437 26495)
 
-#ifdef NDEBUG
-#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
-#else
+#ifdef LUMI_ENABLE_DEBUG_LOG
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
+#else
+#define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
 #endif
 
 #include "spdlog/async.h"
@@ -32,8 +32,7 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
         console_sink->set_pattern("[%H:%M:%S.%e] (%s:%#) %^[%l]\n%v%$");
         console_sink->set_color(              //
             spdlog::level::level_enum::info,  //
-            FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE |
-                FOREGROUND_INTENSITY);
+            FOREGROUND_GREEN | FOREGROUND_INTENSITY);
         console_sink->set_color(
             spdlog::level::level_enum::debug,
             FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
@@ -41,11 +40,10 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
 
         spdlog::init_thread_pool(8192, 1);
 
-        logger = std::make_shared<spdlog::async_logger>(
-            "logger", sink_list.begin(), sink_list.end(),
-            spdlog::thread_pool());
+        logger = std::make_shared<spdlog::logger>(
+            "logger", sink_list.begin(), sink_list.end());
         logger->set_level(spdlog::level::trace);
-        logger->flush_on(spdlog::level::err);
+        logger->flush_on(spdlog::level::trace);
 
         spdlog::register_logger(logger);
     }
@@ -66,12 +64,12 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
 #define LOG_FATAL(fmt, ...)   __LOG(CRITICAL, fmt, __VA_ARGS__)
 
 #pragma warning(disable : 4003)
-#ifdef NDEBUG
-#define LOG_ASSERT(exp, fmt, ...) ((void)0)
-#else
+#if defined(LUMI_FORCE_ASSERT) || !defined(NDEBUG)
 #define LOG_ASSERT(exp, fmt, ...)                                              \
     (void)((!!(exp)) ||                                                        \
            (LOG_DEBUG("Assertion failed: " #exp ". "##fmt, __VA_ARGS__), 0) || \
            (assert(0), 0))
+#else
+#define LOG_ASSERT(exp, fmt, ...) ((void)0)
 #endif
 }  // namespace lumi

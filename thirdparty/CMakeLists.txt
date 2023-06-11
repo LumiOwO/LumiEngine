@@ -46,10 +46,9 @@ endif()
 
 # glm
 if(NOT TARGET glm)
-    add_subdirectory_with_folder("thirdparty/glm" glm)
-    # add_subdirectory(glm)
-    # set_property(DIRECTORY glm 
-    #     PROPERTY FOLDER thirdparty/glm)
+    add_subdirectory(glm)
+    set_property(DIRECTORY glm 
+        PROPERTY FOLDER thirdparty/glm)
 endif()
 
 # spdlog

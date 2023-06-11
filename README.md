@@ -7,6 +7,8 @@ A simple Vulkan renderer.
 - [ ] PBR
 - [ ] SSAO
 - [ ] Defered shading
+- [ ] MSAA
+- [ ] vsync
 
 ## Prerequisites
 - Visual Studio >= 2019

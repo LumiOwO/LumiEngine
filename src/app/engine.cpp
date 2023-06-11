@@ -1,17 +1,25 @@
 #include "engine.h"
 
-#include "core/log.h"
-
 namespace lumi {
 
 void Engine::Init() {
     // Init window
-    window_ = std::make_unique<Window>();
+    window_ = std::make_shared<Window>();
     window_->Init();
+
+    // Init RHI
+    rhi_ = std::make_shared<VulkanRHI>();
+    VulkanRHI::InitInfo init_info{};
+    window_->GetWindowSize(init_info.width, init_info.height);
+    init_info.CreateSurface = [this](VkInstance    instance,
+                                     VkSurfaceKHR* p_surface) {
+        return window_->CreateSurface(instance, p_surface);
+    };
+    rhi_->Init(init_info);
 }
 
 void Engine::Run() {
-    LOG_INFO("LumiEngine v{} starts.", LUMI_VERSION);
+    LOG_INFO("LumiEngine v{} starts", LUMI_VERSION);
 
     // Main loop
     while (!window_->ShouldClose()) {
@@ -39,10 +47,14 @@ void Engine::Tick(float dt) {
 
 void Engine::TickLogic(float dt) {}
 
-void Engine::TickRender() {}
+void Engine::TickRender() {
+    rhi_->Draw();
+}
 
 void Engine::Finalize() {
-    // finalize window
+    rhi_->Finalize();
+    rhi_ = nullptr;
+
     window_->Finalize();
     window_ = nullptr;
 }

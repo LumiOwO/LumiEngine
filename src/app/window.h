@@ -1,8 +1,7 @@
 #pragma once
 
-#include <string>
-
-struct GLFWwindow;
+#include "render/vulkan_utils.h"
+#include "GLFW/glfw3.h"
 
 namespace lumi {
 
@@ -18,6 +17,10 @@ public:
     void Finalize();
 
     bool ShouldClose() const;
+
+    VkResult CreateSurface(VkInstance instance, VkSurfaceKHR* p_surface);
+
+    void GetWindowSize(int& width, int& height);
 };
 
 }  // namespace lumi

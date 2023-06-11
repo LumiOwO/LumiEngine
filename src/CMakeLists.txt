@@ -35,8 +35,6 @@ target_include_directories( ${LUMI_TARGET}
 # ============ Link dependencies ============ 
 # add_dependencies(${LUMI_TARGET}
 #     ${SHADERS_COMPILE_TARGET})
-message(STATUS ${Vulkan_INCLUDE_DIRS})
-message(STATUS ${Vulkan_LIBRARIES})
 
 target_link_libraries( ${LUMI_TARGET} 
     ${Vulkan_LIBRARIES}

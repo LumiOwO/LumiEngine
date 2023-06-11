@@ -1,8 +1,4 @@
 #include "window.h"
-#include "core/log.h"
-
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
 
 namespace lumi {
 
@@ -31,7 +27,7 @@ void Window::Init() {
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
     // Create window
-    glfw_window_ = glfwCreateWindow(windowWidth, windowHeight, "LumiEngine",
+    glfw_window_ = glfwCreateWindow(windowWidth, windowHeight, LUMI_ENGINE_NAME,
                                     nullptr, nullptr);
     if (glfw_window_ == nullptr) {
         LOG_ERROR("Failed to create GLFW window");
@@ -60,5 +56,13 @@ void Window::Finalize() {
 }
 
 bool Window::ShouldClose() const { return glfwWindowShouldClose(glfw_window_); }
+
+VkResult Window::CreateSurface(VkInstance instance, VkSurfaceKHR* p_surface) {
+    return glfwCreateWindowSurface(instance, glfw_window_, NULL, p_surface);
+}
+
+void Window::GetWindowSize(int& width, int& height) {
+    glfwGetWindowSize(glfw_window_, &width, &height);
+}
 
 }  // namespace lumi
