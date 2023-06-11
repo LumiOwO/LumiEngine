@@ -1,14 +1,6 @@
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 
 # functions for target properties
-define_property(
-    TARGET
-    PROPERTY FOLDER
-    INHERITED
-    BRIEF_DOCS "Set the folder name."
-    FULL_DOCS  "Use to organize targets in an IDE."
-)
-
 function(get_all_targets _result _dir)
     get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
     foreach(_subdir IN LISTS _subdirs)

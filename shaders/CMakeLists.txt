@@ -1,27 +1,45 @@
-find_program(GLSL_VALIDATOR glslangValidator HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
+set(LUMI_SHADER_COMPILE LumiShaderCompile)
+set(LUMI_SHADER_COMPILE ${LUMI_SHADER_COMPILE} PARENT_SCOPE)
+find_program(GLSL_VALIDATOR glslangValidator 
+            HINTS /usr/bin /usr/local/bin $ENV{VULKAN_SDK}/Bin/ $ENV{VULKAN_SDK}/Bin32/)
 
 ## find all the shader files under the shaders folder
-file(GLOB_RECURSE GLSL_SOURCE_FILES
-    "${PROJECT_SOURCE_DIR}/shaders/*.frag"
-    "${PROJECT_SOURCE_DIR}/shaders/*.vert"
-    "${PROJECT_SOURCE_DIR}/shaders/*.comp"
+file(GLOB_RECURSE GLSL_SOURCE_FILES CONFIGURE_DEPENDS
+    *.vert
+    *.frag
+    *.comp
+    *.geom
+    *.tesc
+    *.tese
+    *.mesh
+    *.task
+    *.rgen
+    *.rchit
+    *.rmiss
     )
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}"
+             PREFIX "shaders"
+             FILES ${GLSL_SOURCE_FILES})
 
 ## iterate each shader
-foreach(GLSL ${GLSL_SOURCE_FILES})
-  message(STATUS "BUILDING SHADER")
-  get_filename_component(FILE_NAME ${GLSL} NAME)
-  set(SPIRV "${PROJECT_SOURCE_DIR}/shaders/${FILE_NAME}.spv")
-  message(STATUS ${GLSL})
-  ##execute glslang command to compile that specific shader
+foreach(GLSL_SOURCE ${GLSL_SOURCE_FILES})
+  string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "${LUMI_SHADERS_COMPILED_DIR}" 
+                 GLSL_COMPILED ${GLSL_SOURCE})
+  # message(STATUS "${GLSL_COMPILED}")
+
+  ## execute glslang command to compile that specific shader
   add_custom_command(
-    OUTPUT ${SPIRV}
-    COMMAND ${GLSL_VALIDATOR} -V ${GLSL} -o ${SPIRV}
-    DEPENDS ${GLSL})
-  list(APPEND SPIRV_BINARY_FILES ${SPIRV})
-endforeach(GLSL)
+    OUTPUT ${GLSL_COMPILED}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LUMI_SHADERS_COMPILED_DIR}
+    COMMAND ${GLSL_VALIDATOR} -V ${GLSL_SOURCE} -o ${GLSL_COMPILED}
+    DEPENDS ${GLSL_SOURCE}
+    )
+  list(APPEND GLSL_BINARY_FILES ${GLSL_COMPILED})
+endforeach()
 
 add_custom_target(
-    Shaders 
-    DEPENDS ${SPIRV_BINARY_FILES}
+    ${LUMI_SHADER_COMPILE} 
+    DEPENDS ${GLSL_BINARY_FILES}
+    SOURCES ${GLSL_SOURCE_FILES}
     )
+set_target_properties(${LUMI_SHADER_COMPILE} PROPERTIES FOLDER ${CMAKE_PROJECT_NAME})
