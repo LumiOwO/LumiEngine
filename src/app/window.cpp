@@ -35,6 +35,16 @@ void Window::Init() {
         exit(1);
     }
 
+    // Setup input callbacks
+    glfwSetWindowUserPointer(glfw_window_, this);
+    glfwSetKeyCallback(glfw_window_, KeyCallback);
+    glfwSetMouseButtonCallback(glfw_window_, MouseButtonCallback);
+    glfwSetCursorPosCallback(glfw_window_, CursorPosCallback);
+    glfwSetCursorEnterCallback(glfw_window_, CursorEnterCallback);
+    glfwSetScrollCallback(glfw_window_, ScrollCallback);
+    glfwSetDropCallback(glfw_window_, DropCallback);
+    glfwSetWindowSizeCallback(glfw_window_, WindowSizeCallback);
+
     // Reset the window hints to default
     glfwDefaultWindowHints();
     glfwSetWindowPos(glfw_window_,
@@ -47,7 +57,6 @@ void Window::Init() {
 
 void Window::Tick() {
     glfwPollEvents();
-    // glfwSwapBuffers(glfw_window_);
 }
 
 void Window::Finalize() {

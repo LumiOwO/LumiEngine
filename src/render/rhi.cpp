@@ -1,31 +1,38 @@
 #include "rhi.h"
 
 namespace lumi {
-void VulkanRHI::Init(InitInfo init_info) {
-    InitVulkan(init_info.CreateSurface);
-    InitSwapchain(init_info.width, init_info.height);
-    InitCommands();
-    InitDefaultRenderPass();
-    InitFrameBuffers();
-    InitSyncStructures();
-    InitPipelines();
+void VulkanRHI::Init(CreateInfo info) {
+    CreateSurface_   = info.CreateSurface;
+    GetWindowExtent_ = info.GetWindowExtent;
+
+    CreateVulkanInstance();
+    CreateSwapchain();
+    CreateCommands();
+    CreateDefaultRenderPass();
+    CreateFrameBuffers();
+    CreateSyncStructures();
+    CreatePipelines();
 }
 
-void VulkanRHI::InitVulkan(fCreateSurface CreateSurface) {
+void VulkanRHI::CreateVulkanInstance() {
     vkb::InstanceBuilder builder;
 
     // make the Vulkan instance, with basic debug features
     auto vkb_inst = builder.set_app_name(LUMI_ENGINE_NAME)
                         .require_api_version(1, 1, 0)
+#ifdef LUMI_ENABLE_DEBUG_LOG
                         .request_validation_layers(true)
                         .use_default_debug_messenger()
+#endif
                         .build()
                         .value();
     instance_ = vkb_inst.instance;
+#ifdef LUMI_ENABLE_DEBUG_LOG
     debug_messenger_ = vkb_inst.debug_messenger;
+#endif
 
     // create the surface of the window
-    VK_CHECK(CreateSurface(instance_, &surface_));
+    VK_CHECK(CreateSurface_(instance_, &surface_));
 
     // use vkbootstrap to select a GPU.
     // We want a GPU that can write to the surface and supports Vulkan 1.1
@@ -85,14 +92,17 @@ void VulkanRHI::InitVulkan(fCreateSurface CreateSurface) {
     destruction_queue_default_.Push([=]() {
         vkDestroyDevice(device_, nullptr);
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
+#ifdef LUMI_ENABLE_DEBUG_LOG
         vkb::destroy_debug_utils_messenger(instance_, debug_messenger_);
+#endif
         vkDestroyInstance(instance_, nullptr);
     });
 }
 
-void VulkanRHI::InitSwapchain(const int width, const int height) {
+void VulkanRHI::CreateSwapchain() {
     vkb::SwapchainBuilder swapchainBuilder(physical_device_, device_, surface_);
 
+    VkExtent2D extent = GetWindowExtent_();
     vkb::Swapchain vkbSwapchain =
         swapchainBuilder
             .use_default_format_selection()
@@ -100,13 +110,14 @@ void VulkanRHI::InitSwapchain(const int width, const int height) {
             .set_desired_present_mode(VK_PRESENT_MODE_FIFO_RELAXED_KHR)
             .set_desired_min_image_count(
                 vkb::SwapchainBuilder::DOUBLE_BUFFERING)
-            .set_desired_extent(width, height)
+            .set_desired_extent(extent.width, extent.height)
             .build()
             .value();
+    LOG_DEBUG("Create swapchain with window extent ({}, {})", extent.width,
+              extent.height);
 
     // store swapchain and its related images
-    window_extent_.width    = width;
-    window_extent_.height   = height;
+    extent_                 = extent;
     swapchain_              = vkbSwapchain.swapchain;
     swapchain_images_       = vkbSwapchain.get_images().value();
     swapchain_image_views_  = vkbSwapchain.get_image_views().value();
@@ -117,7 +128,7 @@ void VulkanRHI::InitSwapchain(const int width, const int height) {
     });
 }
 
-void VulkanRHI::InitCommands() {
+void VulkanRHI::CreateCommands() {
     // create a command pool for commands submitted to the graphics queue.
     auto commandPoolInfo = vk::BuildCommandPoolCreateInfo(
         graphics_queue_family_,
@@ -134,7 +145,7 @@ void VulkanRHI::InitCommands() {
         [=]() { vkDestroyCommandPool(device_, command_pool_, nullptr); });
 }
 
-void VulkanRHI::InitDefaultRenderPass() {
+void VulkanRHI::CreateDefaultRenderPass() {
     // the renderpass will use this color attachment.
     VkAttachmentDescription color_attachment{};
     color_attachment.format         = swapchain_image_format_;
@@ -172,10 +183,10 @@ void VulkanRHI::InitDefaultRenderPass() {
         [=]() { vkDestroyRenderPass(device_, render_pass_, nullptr); });
 }
 
-void VulkanRHI::InitFrameBuffers() {
+void VulkanRHI::CreateFrameBuffers() {
     // Create the framebuffers for the swapchain images. 
     // This will connect the render-pass to the images for rendering
-    auto fb_info = vk::BuildFramebufferCreateInfo(render_pass_, window_extent_);
+    auto fb_info = vk::BuildFramebufferCreateInfo(render_pass_, extent_);
 
     // grab how many images we have in the swapchain
     const size_t swapchain_imagecount = swapchain_images_.size();
@@ -193,7 +204,7 @@ void VulkanRHI::InitFrameBuffers() {
     }
 }
 
-void VulkanRHI::InitSyncStructures() {
+void VulkanRHI::CreateSyncStructures() {
     // Create synchronization structures
     // we want to create the fence with the Create Signaled flag,
     // so we can wait on it before using it on a GPU command (for the first frame)
@@ -215,7 +226,7 @@ void VulkanRHI::InitSyncStructures() {
     });
 }
 
-void VulkanRHI::InitPipelines() {
+void VulkanRHI::CreatePipelines() {
     VkShaderModule triangleFragShader;
     if (!LoadShaderModule(LUMI_SHADERS_DIR "/triangle.frag.spv",
                           &triangleFragShader)) {
@@ -258,15 +269,10 @@ void VulkanRHI::InitPipelines() {
     // we are just going to draw triangle list
     pipeline_builder.input_assembly =
         vk::BuildInputAssemblyCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    // build viewport and scissor from the swapchain extents
-    pipeline_builder.viewport.x        = 0.0f;
-    pipeline_builder.viewport.y        = 0.0f;
-    pipeline_builder.viewport.width    = (float)window_extent_.width;
-    pipeline_builder.viewport.height   = (float)window_extent_.height;
-    pipeline_builder.viewport.minDepth = 0.0f;
-    pipeline_builder.viewport.maxDepth = 1.0f;
-    pipeline_builder.scissor.offset    = {0, 0};
-    pipeline_builder.scissor.extent    = window_extent_;
+    
+    // no need to init viewport & scissor
+    // we use dynamic viewport
+    
     // configure the rasterizer to draw filled triangles
     pipeline_builder.rasterizer =
         vk::BuildRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL);
@@ -293,26 +299,40 @@ void VulkanRHI::InitPipelines() {
 
 void VulkanRHI::Finalize() {
     // make sure the GPU has stopped doing its things
-    vkWaitForFences(device_, 1, &render_fence_, true, kTimeout);
+    WaitForLastFrame();
     destruction_queue_swapchain_.Flush();
     destruction_queue_default_.Flush();
 }
 
-void VulkanRHI::Draw() {
+void VulkanRHI::RecreateSwapChain() {
+    WaitForLastFrame();
+    destruction_queue_swapchain_.Flush();
+
+    CreateSwapchain();
+    CreateFrameBuffers();
+}
+
+void VulkanRHI::Render() {
     static int _frame_number = 0;
 
     // wait until the GPU has finished rendering the last frame.
-    VK_CHECK(vkWaitForFences(device_, 1, &render_fence_, true, kTimeout));
-    VK_CHECK(vkResetFences(device_, 1, &render_fence_));
+    VK_CHECK(WaitForLastFrame());
 
     // request image from the swapchain
     uint32_t swapchainImageIndex;
-    VK_CHECK(vkAcquireNextImageKHR(device_, swapchain_, kTimeout,
-                                   present_semaphore_, nullptr,
-                                   &swapchainImageIndex));
+    VkResult acquire_swapchain_image_result =
+        vkAcquireNextImageKHR(device_, swapchain_, kTimeout, present_semaphore_,
+                              nullptr, &swapchainImageIndex);
+    if (acquire_swapchain_image_result == VK_ERROR_OUT_OF_DATE_KHR) {
+        RecreateSwapChain();
+        return;
+    } else {
+        VK_CHECK(acquire_swapchain_image_result);
+    }
 
     // now that we are sure that the commands finished executing, 
     // we can safely reset the command buffer to begin recording again.
+    VK_CHECK(vkResetFences(device_, 1, &render_fence_));
     VK_CHECK(vkResetCommandBuffer(main_command_buffer_, 0));
 
     // begin the command buffer recording. 
@@ -326,7 +346,7 @@ void VulkanRHI::Draw() {
     VK_CHECK(vkBeginCommandBuffer(main_command_buffer_, &cmdBeginInfo));
 
     //make a clear-color from frame number. This will flash with a 120*pi frame period.
-    VkClearValue clearValue;
+    VkClearValue clearValue{};
     float        flash = std::abs(std::sin(_frame_number / 120.f));
     clearValue.color   = {{flash, flash, flash, 1.0f}};
 
@@ -339,19 +359,16 @@ void VulkanRHI::Draw() {
     rpInfo.renderPass          = render_pass_;
     rpInfo.renderArea.offset.x = 0;
     rpInfo.renderArea.offset.y = 0;
-    rpInfo.renderArea.extent   = window_extent_;
+    rpInfo.renderArea.extent   = extent_;
     rpInfo.framebuffer         = frame_buffers_[swapchainImageIndex];
     rpInfo.clearValueCount     = 1;
     rpInfo.pClearValues        = &clearValue;
     vkCmdBeginRenderPass(main_command_buffer_, &rpInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
-
-    vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      triangle_pipeline_);
+    BindPipeline();
     vkCmdDraw(main_command_buffer_, 3, 1, 0, 0);
-
-
+    
     vkCmdEndRenderPass(main_command_buffer_);
     VK_CHECK(vkEndCommandBuffer(main_command_buffer_));
 
@@ -387,10 +404,38 @@ void VulkanRHI::Draw() {
     presentInfo.pWaitSemaphores    = &render_semaphore_;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pImageIndices      = &swapchainImageIndex;
-    VK_CHECK(vkQueuePresentKHR(graphics_queue_, &presentInfo));
+    
+    VkResult queue_present_result =
+        vkQueuePresentKHR(graphics_queue_, &presentInfo);
+    if (queue_present_result == VK_ERROR_OUT_OF_DATE_KHR ||
+        queue_present_result == VK_SUBOPTIMAL_KHR) {
+        RecreateSwapChain();
+        return;
+    } else {
+        VK_CHECK(queue_present_result);
+    }
 
     // increase the number of frames drawn
     _frame_number++;
+}
+
+void VulkanRHI::BindPipeline() {
+    vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      triangle_pipeline_);
+    // set viewport & scissor when swapchain recreated
+    VkViewport viewport{};
+    viewport.x        = 0.0f;
+    viewport.y        = 0.0f;
+    viewport.width    = (float)extent_.width;
+    viewport.height   = (float)extent_.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 1.0f;
+    vkCmdSetViewport(main_command_buffer_, 0, 1, &viewport);
+
+    VkRect2D scissor{};
+    scissor.offset = {0, 0};
+    scissor.extent = extent_;
+    vkCmdSetScissor(main_command_buffer_, 0, 1, &scissor);
 }
 
 bool VulkanRHI::LoadShaderModule(const char*     filepath,
@@ -403,24 +448,20 @@ bool VulkanRHI::LoadShaderModule(const char*     filepath,
     // find what the size of the file is by looking up the location of the cursor
     // because the cursor is at the end, it gives the size directly in bytes
     size_t fileSize = (size_t)shader_file.tellg();
-    // spirv expects the buffer to be on uint32,
-    // so make sure to reserve an int vector big enough for the entire file
-    std::vector<uint32_t> buffer(fileSize / sizeof(uint32_t));
+    std::vector<char> buffer(fileSize);
     // put file cursor at beginning
     shader_file.seekg(0);
     // load the entire file into the buffer
-    shader_file.read((char*)buffer.data(), fileSize);
+    shader_file.read(buffer.data(), fileSize);
     // now that the file is loaded into the buffer, we can close it
     shader_file.close();
 
     // create a new shader module, using the buffer we loaded
-    VkShaderModuleCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    createInfo.pNext = nullptr;
-
-    //codeSize has to be in bytes, so multiply the ints in the buffer by size of int to know the real size of the buffer
-    createInfo.codeSize = buffer.size() * sizeof(uint32_t);
-    createInfo.pCode    = buffer.data();
+    VkShaderModuleCreateInfo createInfo{};
+    createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    createInfo.pNext    = nullptr;
+    createInfo.codeSize = buffer.size();
+    createInfo.pCode    = (uint32_t*)buffer.data();
 
     //check that the creation goes well.
     VkShaderModule shaderModule;
@@ -430,6 +471,10 @@ bool VulkanRHI::LoadShaderModule(const char*     filepath,
     }
     *out_shader_module = shaderModule;
     return true;
+}
+
+VkResult VulkanRHI::WaitForLastFrame() {
+    return vkWaitForFences(device_, 1, &render_fence_, true, kTimeout);
 }
 
 }  // namespace lumi

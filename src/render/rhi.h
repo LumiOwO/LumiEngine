@@ -9,13 +9,15 @@ private:
     vk::DestructionQueue destruction_queue_default_{};
     vk::DestructionQueue destruction_queue_swapchain_{};
 
-    VkInstance               instance_{};         // Vulkan library handle
-    VkDebugUtilsMessengerEXT debug_messenger_{};  // Vulkan debug output handle
+    VkInstance       instance_{};         // Vulkan library handle
     VkPhysicalDevice physical_device_{};  // GPU chosen as the default device
     VkDevice         device_{};           // Vulkan device for commands
     VkSurfaceKHR     surface_{};          // Vulkan window surface
+#ifdef LUMI_ENABLE_DEBUG_LOG
+    VkDebugUtilsMessengerEXT debug_messenger_{};  // Vulkan debug output handle
+#endif
 
-    VkExtent2D               window_extent_{};
+    VkExtent2D               extent_{};
     VkSwapchainKHR           swapchain_{};
     VkFormat                 swapchain_image_format_{};
     std::vector<VkImage>     swapchain_images_{};
@@ -38,30 +40,42 @@ private:
     VkPipeline       triangle_pipeline_{};
 
 public:
-    using fCreateSurface = std::function<VkResult(VkInstance, VkSurfaceKHR*)>;
-    struct InitInfo {
-        fCreateSurface CreateSurface{};
-        int            width  = 0;
-        int            height = 0;
+    using CreateSurfaceFunc =
+        std::function<VkResult(VkInstance, VkSurfaceKHR*)>;
+    using GetWindowExtentFunc = std::function<VkExtent2D()>;
+    struct CreateInfo {
+        CreateSurfaceFunc   CreateSurface{};
+        GetWindowExtentFunc GetWindowExtent{};
     };
 
-    void Init(InitInfo init_info);
+    void Init(CreateInfo info);
 
     void Finalize();
 
-    void Draw();
+    void Render();
 
     bool LoadShaderModule(const char*     filepath,
                           VkShaderModule* out_shader_module);
 
+
 private:
-    void InitVulkan(fCreateSurface CreateSurface);
-    void InitSwapchain(const int width, const int height);
-    void InitCommands();
-    void InitDefaultRenderPass();
-    void InitFrameBuffers();
-    void InitSyncStructures();
-    void InitPipelines();
+    // function objects provided by window
+    CreateSurfaceFunc   CreateSurface_{};
+    GetWindowExtentFunc GetWindowExtent_{};
+
+    void CreateVulkanInstance();
+    void CreateSwapchain();
+    void CreateCommands();
+    void CreateDefaultRenderPass();
+    void CreateFrameBuffers();
+    void CreateSyncStructures();
+    void CreatePipelines();
+
+    void RecreateSwapChain();
+
+    void BindPipeline();
+
+    VkResult WaitForLastFrame();
 };
 
 }  // namespace lumi

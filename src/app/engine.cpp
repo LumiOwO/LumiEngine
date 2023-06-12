@@ -8,14 +8,17 @@ void Engine::Init() {
     window_->Init();
 
     // Init RHI
-    rhi_ = std::make_shared<VulkanRHI>();
-    VulkanRHI::InitInfo init_info{};
-    window_->GetWindowSize(init_info.width, init_info.height);
-    init_info.CreateSurface = [this](VkInstance    instance,
-                                     VkSurfaceKHR* p_surface) {
+    VulkanRHI::CreateInfo info{};
+    info.CreateSurface = [=](VkInstance instance, VkSurfaceKHR* p_surface) {
         return window_->CreateSurface(instance, p_surface);
     };
-    rhi_->Init(init_info);
+    info.GetWindowExtent = [=]() {
+        int width, height;
+        window_->GetWindowSize(width, height);
+        return VkExtent2D{(uint32_t)width, (uint32_t)height};
+    };
+    rhi_ = std::make_shared<VulkanRHI>();
+    rhi_->Init(info);
 }
 
 void Engine::Run() {
@@ -48,7 +51,7 @@ void Engine::Tick(float dt) {
 void Engine::TickLogic(float dt) {}
 
 void Engine::TickRender() {
-    rhi_->Draw();
+    rhi_->Render();
 }
 
 void Engine::Finalize() {

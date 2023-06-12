@@ -14,11 +14,6 @@ if(PROJECT_SOURCE_DIR STREQUAL PROJECT_BINARY_DIR)
     )
 endif()
 
-# ==================== Options =========================
-# build test option
-option(LUMI_FORCE_ASSERT "Force assert in release mode" ON)
-option(LUMI_ENABLE_DEBUG_LOG "Enable debug level logging" ON)
-
 # ==================== Path Variables ====================
 set(LUMI_ROOT_DIR              ${CMAKE_CURRENT_SOURCE_DIR})
 set(LUMI_THIRDPARTY_DIR        ${LUMI_ROOT_DIR}/thirdparty)
@@ -26,6 +21,11 @@ set(LUMI_ASSETS_DIR            ${LUMI_ROOT_DIR}/assets)
 set(LUMI_SOURCE_DIR            ${LUMI_ROOT_DIR}/src)
 set(LUMI_SHADERS_SRC_DIR       ${LUMI_ROOT_DIR}/shaders)
 set(LUMI_SHADERS_COMPILED_DIR  ${PROJECT_BINARY_DIR}/shaders)
+
+# ==================== Options =========================
+# build test option
+option(LUMI_FORCE_ASSERT       "Force assert in release mode"  OFF)
+option(LUMI_ENABLE_DEBUG_LOG   "Enable debug level logging"    OFF)
 
 # ==================== Global settings ====================
 set(CMAKE_CXX_STANDARD 17)

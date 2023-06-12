@@ -218,6 +218,19 @@ struct PipelineBuilder {
         color_blending.attachmentCount = 1;
         color_blending.pAttachments    = &color_blend_attachment;
 
+        // use dynamic viewport
+        std::vector<VkDynamicState> dynamic_states{
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR,
+        };
+        VkPipelineDynamicStateCreateInfo dynamic_info{};
+        dynamic_info.sType =
+            VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamic_info.pNext             = nullptr;
+        dynamic_info.flags             = 0;
+        dynamic_info.dynamicStateCount = (uint32_t)dynamic_states.size();
+        dynamic_info.pDynamicStates    = dynamic_states.data();
+
         // build the actual pipeline
         // we now use all of the info structs we have been writing 
         // into this one to create the pipeline
@@ -232,6 +245,7 @@ struct PipelineBuilder {
         pipelineInfo.pRasterizationState = &rasterizer;
         pipelineInfo.pMultisampleState   = &multisample;
         pipelineInfo.pColorBlendState    = &color_blending;
+        pipelineInfo.pDynamicState       = &dynamic_info;
         pipelineInfo.layout              = pipeline_layout;
         pipelineInfo.renderPass          = render_pass;
         pipelineInfo.subpass             = 0;
