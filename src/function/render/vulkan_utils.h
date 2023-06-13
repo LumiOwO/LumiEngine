@@ -192,6 +192,7 @@ struct PipelineBuilder {
     VkRect2D                                     scissor{};
     VkPipelineRasterizationStateCreateInfo       rasterizer{};
     VkPipelineColorBlendAttachmentState          color_blend_attachment{};
+    std::vector<VkDynamicState>                  dynamic_states{};
     VkPipelineMultisampleStateCreateInfo         multisample{};
     VkPipelineLayout                             pipeline_layout{};
 
@@ -218,11 +219,7 @@ struct PipelineBuilder {
         color_blending.attachmentCount = 1;
         color_blending.pAttachments    = &color_blend_attachment;
 
-        // use dynamic viewport
-        std::vector<VkDynamicState> dynamic_states{
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR,
-        };
+        // set dynamic viewport
         VkPipelineDynamicStateCreateInfo dynamic_info{};
         dynamic_info.sType =
             VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;

@@ -1,8 +1,11 @@
 #include "engine.h"
+#include "function/cvar/cvar_system.h"
 
 namespace lumi {
 
 void Engine::Init() {
+    cvars::Init();
+
     // Init window
     window_ = std::make_shared<Window>();
     window_->Init();

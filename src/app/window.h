@@ -1,6 +1,6 @@
 #pragma once
 
-#include "render/vulkan_utils.h"
+#include "function/render/vulkan_utils.h"
 #include "GLFW/glfw3.h"
 
 namespace lumi {
@@ -14,6 +14,7 @@ public:
     using OnScrollFunc      = std::function<void(double, double)>;
     using OnDropFunc        = std::function<void(int, const char**)>;
     using OnWindowSizeFunc  = std::function<void(int, int)>;
+    using OnWindowCloseFunc = std::function<void()>;
 
 private:
     GLFWwindow* glfw_window_ = nullptr;
@@ -25,6 +26,7 @@ private:
     std::vector<OnScrollFunc>      on_scroll_func_list_{};
     std::vector<OnDropFunc>        on_drop_func_list_{};
     std::vector<OnWindowSizeFunc>  on_window_size_func_list_{};
+    std::vector<OnWindowCloseFunc> on_window_close_func_list_{};
 
 public:
     void Init();
@@ -40,25 +42,28 @@ public:
     void GetWindowSize(int& width, int& height);
 
     void RegisterOnKeyFunc(OnKeyFunc func) {
-        on_key_func_list_.push_back(func);
+        on_key_func_list_.emplace_back(func);
     }
     void RegisterOnMouseButtonFunc(OnMouseButtonFunc func) {
-        on_mouse_button_func_list_.push_back(func);
+        on_mouse_button_func_list_.emplace_back(func);
     }
     void RegisterOnCursorPosFunc(OnCursorPosFunc func) {
-        on_cursor_pos_func_list_.push_back(func);
+        on_cursor_pos_func_list_.emplace_back(func);
     }
     void RegisterOnCursorEnterFunc(OnCursorEnterFunc func) {
-        on_cursor_enter_func_list_.push_back(func);
+        on_cursor_enter_func_list_.emplace_back(func);
     }
     void RegisterOnScrollFunc(OnScrollFunc func) {
-        on_scroll_func_list_.push_back(func);
+        on_scroll_func_list_.emplace_back(func);
     }
     void RegisterOnDropFunc(OnDropFunc func) {
-        on_drop_func_list_.push_back(func);
+        on_drop_func_list_.emplace_back(func);
     }
     void RegisterOnWindowSizeFunc(OnWindowSizeFunc func) {
-        on_window_size_func_list_.push_back(func);
+        on_window_size_func_list_.emplace_back(func);
+    }
+    void RegisterOnWindowCloseFunc(OnWindowCloseFunc func) {
+        on_window_close_func_list_.emplace_back(func);
     }
 
 private:
@@ -123,6 +128,17 @@ private:
         for (auto& func : app->on_window_size_func_list_) {
             func(width, height);
         }
+    }
+    static void WindowCloseCallback(GLFWwindow* window) {
+        Window* app = (Window*)glfwGetWindowUserPointer(window);
+        if (!app) return;
+
+        // callbacks before close
+        for (auto& func : app->on_window_close_func_list_) {
+            func();
+        }
+        // tell glfw that window should close
+        glfwSetWindowShouldClose(window, true);
     }
 };
 

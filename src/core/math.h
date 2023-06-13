@@ -8,20 +8,25 @@
 
 namespace lumi {
 
-constexpr float kPosInf    = std::numeric_limits<float>::infinity();
-constexpr float kNegInf    = -std::numeric_limits<float>::infinity();
-constexpr float kInf       = kPosInf;
-constexpr float kEps       = FLT_EPSILON;
+namespace math = std;
+
+namespace math {
+
+constexpr float kPosInf = std::numeric_limits<float>::infinity();
+constexpr float kNegInf = -std::numeric_limits<float>::infinity();
+constexpr float kInf    = kPosInf;
+constexpr float kEps    = FLT_EPSILON;
 
 constexpr float kPi        = 3.14159265358979323846264338327950288f;
 constexpr float kTwoPi     = 2.0f * kPi;
 constexpr float kHalfPi    = 0.5f * kPi;
 constexpr float kOneOverPi = 1.0f / kPi;
 
-constexpr float kDeg2Rad   = kPi / 180.0f;
-constexpr float kRad2Deg   = 180.0f / kPi;
+constexpr float kDeg2Rad = kPi / 180.0f;
+constexpr float kRad2Deg = 180.0f / kPi;
+}  // namespace math
 
-using Vec3f    = glm::vec3;
+//using Vec3f    = glm::vec3;
 
 // using Vector2    = DirectX::SimpleMath::Vector2;
 // using Vector3    = DirectX::SimpleMath::Vector3;

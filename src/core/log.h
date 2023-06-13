@@ -2,7 +2,7 @@
 
 #include <cassert>
 
-#include "ISingleton.h"
+#include "singleton.h"
 
 #pragma warning(push, 0)
 #pragma warning(disable : 6285 6385 26812 26451 26498 26437 26495)
@@ -29,7 +29,7 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
         auto console_sink =
             std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
         console_sink->set_level(spdlog::level::trace);
-        console_sink->set_pattern("[%H:%M:%S.%e] (%s:%#) %^[%l]\n%v%$");
+        console_sink->set_pattern("[%H:%M:%S.%e] (%s:%#, %!): \n%^[%l] %v%$");
         console_sink->set_color(              //
             spdlog::level::level_enum::info,  //
             FOREGROUND_GREEN | FOREGROUND_INTENSITY);

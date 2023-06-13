@@ -3,9 +3,9 @@
 #include <chrono>
 #include <memory>
 
-#include "core/ISingleton.h"
+#include "core/singleton.h"
 #include "window.h"
-#include "render/rhi.h"
+#include "function/render/rhi.h"
 
 
 namespace lumi {

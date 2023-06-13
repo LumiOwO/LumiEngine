@@ -44,6 +44,7 @@ void Window::Init() {
     glfwSetScrollCallback(glfw_window_, ScrollCallback);
     glfwSetDropCallback(glfw_window_, DropCallback);
     glfwSetWindowSizeCallback(glfw_window_, WindowSizeCallback);
+    glfwSetWindowCloseCallback(glfw_window_, WindowCloseCallback);
 
     // Reset the window hints to default
     glfwDefaultWindowHints();

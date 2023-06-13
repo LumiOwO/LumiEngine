@@ -16,7 +16,7 @@ public:
     ISingleton& operator=(const ISingleton&) = delete;
 
     static T& Instance() noexcept(std::is_nothrow_constructible<T>::value) {
-        static T instance;
+        static T instance = T();
         return instance;
     }
 };

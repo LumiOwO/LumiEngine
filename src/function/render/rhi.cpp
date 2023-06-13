@@ -272,6 +272,8 @@ void VulkanRHI::CreatePipelines() {
     
     // no need to init viewport & scissor
     // we use dynamic viewport
+    pipeline_builder.dynamic_states.emplace_back(VK_DYNAMIC_STATE_VIEWPORT);
+    pipeline_builder.dynamic_states.emplace_back(VK_DYNAMIC_STATE_SCISSOR);
     
     // configure the rasterizer to draw filled triangles
     pipeline_builder.rasterizer =
