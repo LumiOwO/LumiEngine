@@ -6,7 +6,7 @@ void VulkanRHI::Init(CreateInfo info) {
     GetWindowExtent_ = info.GetWindowExtent;
 
     CreateVulkanInstance();
-    CreateSwapchain();
+    CreateSwapchain(GetWindowExtent_());
     CreateCommands();
     CreateDefaultRenderPass();
     CreateFrameBuffers();
@@ -99,10 +99,8 @@ void VulkanRHI::CreateVulkanInstance() {
     });
 }
 
-void VulkanRHI::CreateSwapchain() {
+void VulkanRHI::CreateSwapchain(VkExtent2D extent) {
     vkb::SwapchainBuilder swapchainBuilder(physical_device_, device_, surface_);
-
-    VkExtent2D extent = GetWindowExtent_();
     vkb::Swapchain vkbSwapchain =
         swapchainBuilder
             .use_default_format_selection()
@@ -308,9 +306,12 @@ void VulkanRHI::Finalize() {
 
 void VulkanRHI::RecreateSwapChain() {
     WaitForLastFrame();
-    destruction_queue_swapchain_.Flush();
 
-    CreateSwapchain();
+    VkExtent2D extent = GetWindowExtent_();
+    if (extent.width == 0 || extent.height == 0) return;
+
+    destruction_queue_swapchain_.Flush();
+    CreateSwapchain(extent);
     CreateFrameBuffers();
 }
 

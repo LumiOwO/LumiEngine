@@ -64,7 +64,7 @@ private:
     GetWindowExtentFunc GetWindowExtent_{};
 
     void CreateVulkanInstance();
-    void CreateSwapchain();
+    void CreateSwapchain(VkExtent2D extent);
     void CreateCommands();
     void CreateDefaultRenderPass();
     void CreateFrameBuffers();
