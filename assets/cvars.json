@@ -1,4 +1,9 @@
 {
+  "colored": {
+    "#description": "colored",
+    "#flags": 0,
+    "#value": false
+  },
   "test": {
     "a": {
       "#description": "test.a",

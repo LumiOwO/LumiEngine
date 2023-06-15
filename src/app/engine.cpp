@@ -1,5 +1,5 @@
 #include "engine.h"
-#include "function/cvar/cvar_system.h"
+#include "function/cvars/cvar_system.h"
 
 namespace lumi {
 
@@ -22,6 +22,10 @@ void Engine::Init() {
     };
     rhi_ = std::make_shared<VulkanRHI>();
     rhi_->Init(info);
+
+    // Init user input
+    user_input_ = std::make_shared<UserInput>();
+    user_input_->Init(window_);
 }
 
 void Engine::Run() {

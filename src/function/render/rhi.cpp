@@ -1,4 +1,5 @@
 #include "rhi.h"
+#include "function/cvars/cvar_system.h"
 
 namespace lumi {
 void VulkanRHI::Init(CreateInfo info) {
@@ -242,6 +243,23 @@ void VulkanRHI::CreatePipelines() {
         LOG_INFO("Triangle vertex shader successfully loaded");
     }
 
+    VkShaderModule redTriangleFragShader;
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/redtriangle.frag.spv",
+                          &redTriangleFragShader)) {
+        LOG_ERROR("Error when building the triangle fragment shader module");
+    } else {
+        LOG_INFO("Red Triangle fragment shader successfully loaded");
+    }
+
+    VkShaderModule redTriangleVertexShader;
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/redtriangle.vert.spv",
+                          &redTriangleVertexShader)) {
+        LOG_ERROR("Error when building the triangle vertex shader module");
+
+    } else {
+        LOG_INFO("Red Triangle vertex shader successfully loaded");
+    }
+
     // build the pipeline layout that controls the inputs/outputs of the shader
     // we are not using descriptor sets or other systems yet, 
     // so no need to use anything other than empty default
@@ -287,9 +305,21 @@ void VulkanRHI::CreatePipelines() {
     // finally build the pipeline
     triangle_pipeline_ = pipeline_builder.Build(device_, render_pass_);
 
+    //build the red triangle pipeline
+    pipeline_builder.shader_stages.clear();
+    pipeline_builder.shader_stages.emplace_back(
+        vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,
+                                               redTriangleVertexShader));
+    pipeline_builder.shader_stages.emplace_back(
+        vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT,
+                                               redTriangleFragShader));
+    red_triangle_pipeline_ = pipeline_builder.Build(device_, render_pass_);
+
     //destroy all shader modules, outside of the queue
     vkDestroyShaderModule(device_, triangleFragShader, nullptr);
     vkDestroyShaderModule(device_, triangleVertexShader, nullptr);
+    vkDestroyShaderModule(device_, redTriangleFragShader, nullptr);
+    vkDestroyShaderModule(device_, redTriangleVertexShader, nullptr);
 
     destruction_queue_default_.Push([=]() {
         vkDestroyPipeline(device_, triangle_pipeline_, nullptr);
@@ -423,8 +453,15 @@ void VulkanRHI::Render() {
 }
 
 void VulkanRHI::BindPipeline() {
-    vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      triangle_pipeline_);
+    if (cvars::GetBool("colored").value()) {
+        vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          triangle_pipeline_);
+    } else {
+        vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                          red_triangle_pipeline_);
+    }
+    
+
     // set viewport & scissor when swapchain recreated
     VkViewport viewport{};
     viewport.x        = 0.0f;

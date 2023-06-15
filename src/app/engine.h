@@ -4,8 +4,10 @@
 #include <memory>
 
 #include "core/singleton.h"
-#include "window.h"
 #include "function/render/rhi.h"
+
+#include "window.h"
+#include "user_input.h"
 
 
 namespace lumi {
@@ -15,8 +17,9 @@ private:
     std::chrono::steady_clock::time_point last_time_point_{
         std::chrono::steady_clock::now()};
 
-    std::shared_ptr<Window> window_{};
+    std::shared_ptr<Window>    window_{};
     std::shared_ptr<VulkanRHI> rhi_{};
+    std::shared_ptr<UserInput> user_input_{};
 
 public:
     void Init();

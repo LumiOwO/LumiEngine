@@ -38,6 +38,7 @@ private:
 
     VkPipelineLayout triangle_pipeline_layout_{};
     VkPipeline       triangle_pipeline_{};
+    VkPipeline       red_triangle_pipeline_{};
 
 public:
     using CreateSurfaceFunc =
