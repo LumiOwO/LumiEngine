@@ -23,27 +23,41 @@ struct CVarStorage {
         size_t           start_pos = 0;
 
         // nesting
-        Json* ptr_j = &res;
+        Json* p_json = &res;
         do {
             size_t end_pos = name.find('.', start_pos);
             if (end_pos == name.npos) break;
 
             std::string_view level_name =
                 name.substr(start_pos, end_pos - start_pos);
-            Json& j   = (*ptr_j)[level_name];
-            j         = Json::object();
-            ptr_j     = &j;
-            start_pos = end_pos + 1;
+            Json& json = (*p_json)[level_name];
+            json       = Json::object();
+            p_json     = &json;
+            start_pos  = end_pos + 1;
         } while (true);
 
         std::string_view level_name =
             name.substr(start_pos, name.size() - start_pos);
-        (*ptr_j)[level_name] = {
-            {"#value", value},
-            {"#description", p_desc->description},
-            {"#flags", p_desc->flags},
-        };
+        Json& json = (*p_json)[level_name];
 
+        const std::string& description =
+            (p_desc->description != p_desc->name) ? p_desc->description : "";
+        CVarFlags flags = p_desc->flags;
+
+        if (description.empty() && flags == CVarFlags::kNone) {
+            // primitive
+            json = value;
+        } else {
+            // object
+            json["#value"] = value;
+            if (!description.empty()) {
+                json["#description"] = p_desc->description;
+            }
+            if (flags != CVarFlags::kNone) {
+                json["#flags"] = p_desc->flags;
+            }
+        }
+        
         return res;
     }
 };
@@ -78,14 +92,6 @@ struct CVarArray : public CVarArrayBase {
         values[index].value  = value;
         p_desc->index_       = index;
         return index;
-    }
-
-    Json ToJson() {
-        Json res = Json::object();
-        for (int32_t i = 0; i < cnt; i++) {
-            res.update(values[i].ToJson(), true);
-        }
-        return res;
     }
 };
 
@@ -225,61 +231,116 @@ struct CVarSystem : public ISingleton<CVarSystem> {
 
     Json ToJson() {
         Json res = Json::object();
-        res.update(cvar_arrays_bool.ToJson(), true);
-        res.update(cvar_arrays_int.ToJson(), true);
-        res.update(cvar_arrays_float.ToJson(), true);
-        res.update(cvar_arrays_string.ToJson(), true);
+        for (int32_t i = 0; i < cvar_arrays_bool.cnt; i++) {
+            Json json = cvar_arrays_bool.values[i].ToJson();
+            UpdateNestingJsonCVar(res, json);
+        }
+        for (int32_t i = 0; i < cvar_arrays_int.cnt; i++) {
+            Json json = cvar_arrays_int.values[i].ToJson();
+            UpdateNestingJsonCVar(res, json);
+        }
+        for (int32_t i = 0; i < cvar_arrays_float.cnt; i++) {
+            Json json = cvar_arrays_float.values[i].ToJson();
+            UpdateNestingJsonCVar(res, json);
+        }
+        for (int32_t i = 0; i < cvar_arrays_string.cnt; i++) {
+            Json json = cvar_arrays_string.values[i].ToJson();
+            UpdateNestingJsonCVar(res, json);
+        }
         return res;
+    }
+
+    void UpdateNestingJsonCVar(Json& root, const Json& j_cvar) {
+        // Note: Assume all cvars names are different
+        LOG_ASSERT(j_cvar.is_object());
+
+        Json*       p_json   = &root;
+        const Json* p_j_cvar = &j_cvar;
+
+        while (true) {
+            Json& json  = (*p_json);
+            auto& key   = p_j_cvar->begin().key();
+            auto& value = p_j_cvar->begin().value();
+
+            if (!json.contains(key)) {
+                json[key] = value;
+                break;
+            }
+
+            if (!json[key].is_object()) {
+                Json j_value = json[key];
+                json[key]    = {
+                    {"#value", j_value},
+                };
+            }
+
+            if (!value.is_object() || value.contains("#value")) {
+                // leaf
+                json[key]["#value"] = value;
+                break;
+            }
+            // nesting object
+            p_json   = &json[key];
+            p_j_cvar = &value;
+        }
     }
 
     void CreateCVarsFromJson(const Json& json, const std::string& prefix = "") {
         if (json.empty()) return;
 
-        if (json.contains("#value")) {
-            const Json& j_value = json["#value"];
-            LOG_ASSERT(json.contains("#description") &&
-                       json.contains("#flags"));
+        for (auto& [key, value] : json.items()) {
+            std::string name = prefix.empty() ? key : prefix + "." + key;
 
-            if (j_value.is_boolean()) {
-                CreateCVar<cvars::BoolType>(prefix, json["#value"],
-                                            json["#description"],
-                                            json["#flags"]);
-            } else if (j_value.is_number_integer()) {
-                CreateCVar<cvars::IntType>(prefix, json["#value"],
-                                           json["#description"],
-                                           json["#flags"]);
-            } else if (j_value.is_number_float()) {
-                CreateCVar<cvars::FloatType>(prefix, json["#value"],
-                                             json["#description"],
-                                             json["#flags"]);
-            } else if (j_value.is_string()) {
-                CreateCVar<cvars::StringType>(prefix, json["#value"],
-                                              json["#description"],
-                                              json["#flags"]);
+            if (key.empty()) {
+                LOG_WARNING("Prefix \"{}\" contains an empty key", prefix);
+            } else if (key == "#value") {
+                CreateCVarsFromJsonLeaf(json, prefix);
+            } else if (key[0] == '#') {
+                ;
+            } else if (value.is_primitive()) {
+                CreateCVarsFromJsonLeaf(value, name);
+            } else if (value.is_object()) {
+                // parse nesting objects
+                CreateCVarsFromJson(value, name);
             } else {
                 LOG_WARNING(
                     "Ignore console variable \"{}\" due to invalid value type",
-                    prefix);
-            }
-        }
-
-        // parse nesting objects
-        for (auto& [key, value] : json.items()) {
-            if (key[0] == '#') {
-                continue;
-            }
-
-            std::string name = prefix.empty() ? key : prefix + "." + key;
-            if (!value.is_object()) {
-                LOG_WARNING(
-                    "Ignore console variable \"{}\" due to invalid value type",
                     name);
-                continue;
             }
 
-            CreateCVarsFromJson(value, name);
         }
     }
+
+    void CreateCVarsFromJsonLeaf(const Json& leaf, const std::string& name) {
+        if (name.empty()) {
+            LOG_WARNING("Ignore console variable \"\" due to empty name");
+            return;
+        }
+        // Use value's json object for auto type convert
+        const Json&        j_value = leaf.is_object() ? leaf["#value"] : leaf;
+        const std::string& description =
+            (leaf.is_object() && leaf.contains("#description"))
+                ? leaf["#description"]
+                : "";
+        CVarFlags flags = (leaf.is_object() && leaf.contains("#flags"))
+                              ? leaf["#flags"]
+                              : CVarFlags::kNone;
+
+        if (j_value.is_boolean()) {
+            CreateCVar<cvars::BoolType>(name, j_value, description, flags);
+        } else if (j_value.is_number_integer()) {
+            CreateCVar<cvars::IntType>(name, j_value, description,  //
+                                       flags);
+        } else if (j_value.is_number_float()) {
+            CreateCVar<cvars::FloatType>(name, j_value, description, flags);
+        } else if (j_value.is_string()) {
+            CreateCVar<cvars::StringType>(name, j_value, description, flags);
+        } else {
+            LOG_WARNING(
+                "Ignore console variable \"{}\" due to invalid value type",
+                name);
+        }
+    };
 };
 
 // definitions of cvars namespace functions

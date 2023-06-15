@@ -323,6 +323,7 @@ void VulkanRHI::CreatePipelines() {
 
     destruction_queue_default_.Push([=]() {
         vkDestroyPipeline(device_, triangle_pipeline_, nullptr);
+        vkDestroyPipeline(device_, red_triangle_pipeline_, nullptr);
         vkDestroyPipelineLayout(device_, triangle_pipeline_layout_, nullptr);
     });
 }
