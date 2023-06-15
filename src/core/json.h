@@ -3,8 +3,10 @@
 #include <filesystem>
 #include <fstream>
 
+#include "log.h"
+
 #pragma warning(push, 0)
-#pragma warning(disable : 26819 28020)
+#pragma warning(disable : 26819 28020 26495)
 #define JSON_HAS_FILESYSTEM 1
 #include "nlohmann/json.hpp"
 #pragma warning(pop)
@@ -22,20 +24,30 @@ namespace fs = std::filesystem;
 inline bool LoadJson(Json &json, const fs::path& filepath) {
     auto absolute_path =
         filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
-    auto in = std::ifstream(absolute_path.c_str());
+    auto in = std::ifstream(absolute_path);
     if (!in) return false;
 
-    json = Json::parse(in);
+    try {
+        json = Json::parse(in);
+    } catch (const std::exception& e) {
+        LOG_ERROR(e.what());
+        return false;
+    }
     return true;
 }
 
 inline bool SaveJson(const Json &json, const fs::path& filepath) {
     auto absolute_path =
         filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
-    auto out = std::ofstream(absolute_path.c_str());
+    auto out = std::ofstream(absolute_path);
     if (!out) return false;
 
-    out << json.dump(2);
+    try {
+        out << json.dump(2);
+    } catch (const std::exception& e) {
+        LOG_ERROR(e.what());
+        return false;
+    }
     return true;
 }
 

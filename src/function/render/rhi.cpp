@@ -45,7 +45,7 @@ void VulkanRHI::CreateVulkanInstance() {
             .set_required_features(required_features)
             .select_devices()
             .value();
-    LOG_ASSERT(physical_devices.size() > 0, "No suitable physical device found.");
+    LOG_ASSERT(physical_devices.size() > 0, "No suitable physical device found");
 
     // Rating to choose best device
     int max_score = 0;
@@ -255,10 +255,10 @@ void VulkanRHI::CreatePipelines() {
     // This lets the pipeline know the shader modules per stage
     vk::PipelineBuilder pipeline_builder{};
 
-    pipeline_builder.shader_stages.push_back(
+    pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,
                                                triangleVertexShader));
-    pipeline_builder.shader_stages.push_back(
+    pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT,
                                                triangleFragShader));
     // vertex input controls how to read vertices from vertex buffers.

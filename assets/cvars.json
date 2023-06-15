@@ -1,0 +1,38 @@
+{
+  "test": {
+    "a": {
+      "#description": "test.a",
+      "#flags": 0,
+      "#value": false
+    },
+    "b": {
+      "#description": "test.b",
+      "#flags": 0,
+      "#value": true
+    },
+    "c": {
+      "#description": "test.c",
+      "#flags": 0,
+      "#value": "asdasd"
+    },
+    "d": {
+      "f": {
+        "#description": "test.d.f",
+        "#flags": 0,
+        "#value": 3.0
+      },
+      "ff": {
+        "#description": "test.d.ff",
+        "#flags": 0,
+        "#value": 35
+      }
+    }
+  },
+  "value": {
+    "a": {
+      "#description": "test.d.f",
+      "#flags": 0,
+      "#value": 3.0
+    }
+  }
+}

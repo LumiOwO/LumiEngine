@@ -5,9 +5,13 @@ using namespace lumi;
 int main() {
     auto& engine = Engine::Instance();
 
-    engine.Init();
-    engine.Run();
-    engine.Finalize();
+    try {
+        engine.Init();
+        engine.Run();
+        engine.Finalize();
+    } catch (const std::exception& e) {
+        LOG_ERROR("Caught exception with message: {}", e.what());
+    }
 
     return 0;
 }

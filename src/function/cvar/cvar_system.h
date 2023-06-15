@@ -62,10 +62,19 @@ private:
     int32_t index_ = -1;
 };
 
-using CVarBool   = CVar<bool>;
-using CVarInt    = CVar<int32_t>;
-using CVarFloat  = CVar<float>;
-using CVarString = CVar<std::string>;
+namespace cvars {
+
+using BoolType   = bool;
+using IntType    = int32_t;
+using FloatType  = float;
+using StringType = std::string;
+
+}  // namespace cvars
+
+using CVarBool   = CVar<cvars::BoolType>;
+using CVarInt    = CVar<cvars::IntType>;
+using CVarFloat  = CVar<cvars::FloatType>;
+using CVarString = CVar<cvars::StringType>;
 
 namespace cvars {
 
@@ -73,16 +82,16 @@ void Init();
 
 void SaveToDisk();
 
-CVarBool   CreateBool(const std::string_view& name, bool value,
+CVarBool   CreateBool(const std::string_view& name, BoolType value,
                       const std::string_view& description = "",
                       CVarFlags               flags       = CVarFlags::kNone);
-CVarInt    CreateInt(const std::string_view& name, int32_t value,
+CVarInt    CreateInt(const std::string_view& name, IntType value,
                      const std::string_view& description = "",
                      CVarFlags               flags       = CVarFlags::kNone);
-CVarFloat  CreateFloat(const std::string_view& name, float value,
+CVarFloat  CreateFloat(const std::string_view& name, FloatType value,
                        const std::string_view& description = "",
                        CVarFlags               flags       = CVarFlags::kNone);
-CVarString CreateString(const std::string_view& name, const std::string& value,
+CVarString CreateString(const std::string_view& name, const StringType& value,
                         const std::string_view& description = "",
                         CVarFlags               flags       = CVarFlags::kNone);
 
@@ -91,13 +100,33 @@ CVarInt    GetInt(const std::string_view& name);
 CVarFloat  GetFloat(const std::string_view& name);
 CVarString GetString(const std::string_view& name);
 
-CVarBool   SetBool(const std::string_view& name, bool value);
-CVarInt    SetInt(const std::string_view& name, int32_t value);
-CVarFloat  SetFloat(const std::string_view& name, float value);
-CVarString SetString(const std::string_view& name, const std::string& value);
+CVarBool   SetBool(const std::string_view& name, BoolType value);
+CVarInt    SetInt(const std::string_view& name, IntType value);
+CVarFloat  SetFloat(const std::string_view& name, FloatType value);
+CVarString SetString(const std::string_view& name, const StringType& value);
 
 const CVarDesc& GetCVarDesc(const std::string_view& name);
 
 };  // namespace cvars
+
+template <>
+constexpr CVarType CVarBool::type() {
+    return CVarType::kBool;
+}
+
+template <>
+constexpr CVarType CVarInt::type() {
+    return CVarType::kInt;
+}
+
+template <>
+constexpr CVarType CVarFloat::type() {
+    return CVarType::kFloat;
+}
+
+template <>
+constexpr CVarType CVarString::type() {
+    return CVarType::kString;
+}
 
 }  // namespace lumi

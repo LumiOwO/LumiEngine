@@ -55,20 +55,39 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
     }
 };
 
-#define __LOG(log_name, ...) \
+#define LOG_(log_name, ...) \
     SPDLOG_LOGGER_##log_name(lumi::LogWrapper::Instance().logger, __VA_ARGS__)
-#define LOG_INFO(fmt, ...)    __LOG(INFO, fmt, __VA_ARGS__)
-#define LOG_DEBUG(fmt, ...)   __LOG(DEBUG, fmt, __VA_ARGS__)
-#define LOG_WARNING(fmt, ...) __LOG(WARN, fmt, __VA_ARGS__)
-#define LOG_ERROR(fmt, ...)   __LOG(ERROR, fmt, __VA_ARGS__)
-#define LOG_FATAL(fmt, ...)   __LOG(CRITICAL, fmt, __VA_ARGS__)
+#define LOG_INFO(fmt, ...)    LOG_(INFO, fmt, __VA_ARGS__)
+#define LOG_DEBUG(fmt, ...)   LOG_(DEBUG, fmt, __VA_ARGS__)
+#define LOG_WARNING(fmt, ...) LOG_(WARN, fmt, __VA_ARGS__)
+#define LOG_ERROR(fmt, ...)   LOG_(ERROR, fmt, __VA_ARGS__)
+#define LOG_FATAL(fmt, ...)   LOG_(CRITICAL, fmt, __VA_ARGS__)
 
 #pragma warning(disable : 4003)
 #if defined(LUMI_FORCE_ASSERT) || !defined(NDEBUG)
-#define LOG_ASSERT(exp, fmt, ...)                                              \
-    (void)((!!(exp)) ||                                                        \
-           (LOG_DEBUG("Assertion failed: " #exp ". "##fmt, __VA_ARGS__), 0) || \
-           (assert(0), 0))
+
+// !!Important!!:  These macros are Microsoft specific
+#define LOG_ASSERT_CALL_(X, Y)                             X Y
+#define LOG_ASSERT_EXPAND_(...)                            __VA_ARGS__
+#define LOG_ASSERT_GET_ARG4_(a0_, a1_, a2_, a3_, a4_, ...) a4_
+#define LOG_ASSERT_COUNT_FROM_0_TO_3_(...) \
+    LOG_ASSERT_EXPAND_(LOG_ASSERT_GET_ARG4_(__VA_ARGS__, 3, 2, 1, 0))
+#define LOG_ASSERT_COUNT_(...) \
+    LOG_ASSERT_CALL_(LOG_ASSERT_COUNT_FROM_0_TO_3_, (, __VA_ARGS__))
+
+#define LOG_ASSERT_HAS_FMT_(...) LOG_ASSERT_COUNT_(__VA_ARGS__)
+#define LOG_ASSERT_MESSAGE_HAS_FMT_(exp, fmt, ...) \
+    LOG_ERROR("Assertion (" #exp ") failed: " fmt, __VA_ARGS__)
+#define LOG_ASSERT_MESSAGE_NO_FMT_(exp) LOG_ERROR("Assertion (" #exp ") failed")
+#define LOG_ASSERT_MESSAGE_(exp, fmt, ...)                              \
+    (void)((LOG_ASSERT_HAS_FMT_(fmt) &&                                 \
+            (LOG_ASSERT_MESSAGE_HAS_FMT_(exp, fmt, __VA_ARGS__), 1)) || \
+           (LOG_ASSERT_MESSAGE_NO_FMT_(exp), 0))
+
+#define LOG_ASSERT(exp, fmt, ...)                                          \
+    (void)((!!(exp)) || (LOG_ASSERT_MESSAGE_(exp, fmt, __VA_ARGS__), 0) || \
+           (throw std::runtime_error("Assertion (" #exp ") failed"), 0))
+
 #else
 #define LOG_ASSERT(exp, fmt, ...) ((void)0)
 #endif

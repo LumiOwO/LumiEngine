@@ -63,5 +63,7 @@ void Engine::Finalize() {
 
     window_->Finalize();
     window_ = nullptr;
+
+    cvars::SaveToDisk();
 }
 }  // namespace lumi

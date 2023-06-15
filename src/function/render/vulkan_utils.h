@@ -9,15 +9,14 @@
 
 #include "vkbootstrap/VkBootstrap.h"
 
-#define VK_CHECK(x)                                             \
-    do {                                                        \
-        VkResult err = x;                                       \
-        if (err) {                                              \
-            LOG_ERROR("{}: Detected Vulkan error {}", #x, err); \
-            exit(1);                                            \
-        }                                                       \
+#define VK_CHECK(x)                                  \
+    do {                                             \
+        VkResult err = x;                            \
+        if (err) {                                   \
+            LOG_ERROR("Vulkan error {} in" #x, err); \
+            exit(1);                                 \
+        }                                            \
     } while (0)
-
 
 namespace lumi {
 
@@ -253,7 +252,7 @@ struct PipelineBuilder {
         VkPipeline newPipeline;
         if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
                                       nullptr, &newPipeline) != VK_SUCCESS) {
-            LOG_ERROR("failed to create pipeline");
+            LOG_ERROR("Failed to create pipeline");
             return VK_NULL_HANDLE;  // failed to create graphics pipeline
         } else {
             return newPipeline;

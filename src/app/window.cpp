@@ -5,7 +5,7 @@ namespace lumi {
 void Window::Init() {
     glfwInit();
     if (glfwVulkanSupported() == GLFW_FALSE) {
-        LOG_ERROR("glfwVulkan is not supported");
+        LOG_ERROR("Vulkan is not supported for glfw");
         glfwTerminate();
         exit(1);
     }
