@@ -22,6 +22,12 @@ namespace lumi {
 
 namespace vk {
 
+struct UploadContext {
+    VkFence         upload_fence{};
+    VkCommandPool   command_pool{};
+    VkCommandBuffer command_buffer{};
+};
+
 // class for destroying vulkan resources
 class DestructionQueue {
 private:
@@ -180,6 +186,31 @@ inline VkSemaphoreCreateInfo BuildSemaphoreCreateInfo(
     info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     info.pNext = nullptr;
     info.flags = flags;
+    return info;
+}
+
+inline VkCommandBufferBeginInfo BuildCommandBufferBeginInfo(
+    VkCommandBufferUsageFlags flags = 0) {
+
+    VkCommandBufferBeginInfo info{};
+    info.sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    info.pNext            = nullptr;
+    info.pInheritanceInfo = nullptr;
+    info.flags            = flags;
+    return info;
+}
+
+inline VkSubmitInfo BuildSubmitInfo(VkCommandBuffer* p_cmd) {
+    VkSubmitInfo info{};
+    info.sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    info.pNext                = nullptr;
+    info.waitSemaphoreCount   = 0;
+    info.pWaitSemaphores      = nullptr;
+    info.pWaitDstStageMask    = nullptr;
+    info.commandBufferCount   = 1;
+    info.pCommandBuffers      = p_cmd;
+    info.signalSemaphoreCount = 0;
+    info.pSignalSemaphores    = nullptr;
     return info;
 }
 

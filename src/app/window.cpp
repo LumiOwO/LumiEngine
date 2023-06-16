@@ -1,5 +1,9 @@
 #include "window.h"
 
+#include "imgui/backends/imgui_impl_glfw.h"
+#include "imgui/backends/imgui_impl_vulkan.h"
+#include "imgui/imgui.h"
+
 namespace lumi {
 
 void Window::Init() {
@@ -73,6 +77,10 @@ VkResult Window::CreateSurface(VkInstance instance, VkSurfaceKHR* p_surface) {
 
 void Window::GetWindowSize(int& width, int& height) {
     glfwGetWindowSize(glfw_window_, &width, &height);
+}
+
+void Window::ImGuiInitWindowForRHI() {
+    ImGui_ImplGlfw_InitForVulkan(glfw_window_, true);
 }
 
 }  // namespace lumi

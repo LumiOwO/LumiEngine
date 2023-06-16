@@ -20,6 +20,9 @@ void Engine::Init() {
         window_->GetWindowSize(width, height);
         return VkExtent2D{(uint32_t)width, (uint32_t)height};
     };
+    info.ImGuiInitWindowForRHI = [=]() {
+        window_->ImGuiInitWindowForRHI();
+    };
     rhi_ = std::make_shared<VulkanRHI>();
     rhi_->Init(info);
 

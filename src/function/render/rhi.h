@@ -40,13 +40,17 @@ private:
     VkPipeline       triangle_pipeline_{};
     VkPipeline       red_triangle_pipeline_{};
 
+    vk::UploadContext upload_context_{};
+
 public:
     using CreateSurfaceFunc =
         std::function<VkResult(VkInstance, VkSurfaceKHR*)>;
     using GetWindowExtentFunc = std::function<VkExtent2D()>;
+    using ImGuiInitWindowForRHIFunc = std::function<void()>;
     struct CreateInfo {
-        CreateSurfaceFunc   CreateSurface{};
-        GetWindowExtentFunc GetWindowExtent{};
+        CreateSurfaceFunc         CreateSurface{};
+        GetWindowExtentFunc       GetWindowExtent{};
+        ImGuiInitWindowForRHIFunc ImGuiInitWindowForRHI{};
     };
 
     void Init(CreateInfo info);
@@ -58,11 +62,11 @@ public:
     bool LoadShaderModule(const char*     filepath,
                           VkShaderModule* out_shader_module);
 
-
 private:
     // function objects provided by window
-    CreateSurfaceFunc   CreateSurface_{};
-    GetWindowExtentFunc GetWindowExtent_{};
+    CreateSurfaceFunc         CreateSurface_{};
+    GetWindowExtentFunc       GetWindowExtent_{};
+    ImGuiInitWindowForRHIFunc ImGuiInitWindowForRHI_{};
 
     void CreateVulkanInstance();
     void CreateSwapchain(VkExtent2D extent);
@@ -77,6 +81,12 @@ private:
     void BindPipeline();
 
     VkResult WaitForLastFrame();
+
+    void ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func);
+
+    void InitImGui();
+
+    void RenderImGui();
 };
 
 }  // namespace lumi

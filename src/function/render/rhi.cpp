@@ -3,8 +3,9 @@
 
 namespace lumi {
 void VulkanRHI::Init(CreateInfo info) {
-    CreateSurface_   = info.CreateSurface;
-    GetWindowExtent_ = info.GetWindowExtent;
+    CreateSurface_         = info.CreateSurface;
+    GetWindowExtent_       = info.GetWindowExtent;
+    ImGuiInitWindowForRHI_ = info.ImGuiInitWindowForRHI;
 
     CreateVulkanInstance();
     CreateSwapchain(GetWindowExtent_());
@@ -13,6 +14,8 @@ void VulkanRHI::Init(CreateInfo info) {
     CreateFrameBuffers();
     CreateSyncStructures();
     CreatePipelines();
+
+    InitImGui();
 }
 
 void VulkanRHI::CreateVulkanInstance() {
@@ -134,14 +137,26 @@ void VulkanRHI::CreateCommands() {
         VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
     VK_CHECK(vkCreateCommandPool(device_, &commandPoolInfo, nullptr,
                                  &command_pool_));
-
     // allocate the default command buffer that we will use for rendering
     auto cmdAllocInfo = vk::BuildCommandBufferAllocateInfo(command_pool_, 1);
     VK_CHECK(vkAllocateCommandBuffers(device_, &cmdAllocInfo,
                                       &main_command_buffer_));
 
-    destruction_queue_default_.Push(
-        [=]() { vkDestroyCommandPool(device_, command_pool_, nullptr); });
+    // create pool for upload context
+    auto uploadCommandPoolInfo =
+        vk::BuildCommandPoolCreateInfo(graphics_queue_family_);
+    VK_CHECK(vkCreateCommandPool(device_, &uploadCommandPoolInfo, nullptr,
+                                 &upload_context_.command_pool));
+    // allocate the default command buffer that we will use for the instant commands
+    auto uploadCmdAllocInfo =
+        vk::BuildCommandBufferAllocateInfo(upload_context_.command_pool, 1);
+    VK_CHECK(vkAllocateCommandBuffers(device_, &uploadCmdAllocInfo,
+                                      &upload_context_.command_buffer));
+
+    destruction_queue_default_.Push([=]() {
+        vkDestroyCommandPool(device_, upload_context_.command_pool, nullptr);
+        vkDestroyCommandPool(device_, command_pool_, nullptr);
+    });
 }
 
 void VulkanRHI::CreateDefaultRenderPass() {
@@ -211,6 +226,10 @@ void VulkanRHI::CreateSyncStructures() {
         vk::BuildFenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
     VK_CHECK(vkCreateFence(device_, &fenceCreateInfo, nullptr, &render_fence_));
 
+    auto uploadFenceCreateInfo = vk::BuildFenceCreateInfo();
+    VK_CHECK(vkCreateFence(device_, &uploadFenceCreateInfo, nullptr,
+                           &upload_context_.upload_fence));
+
     // for the semaphores we don't need any flags
     auto semaphoreCreateInfo = vk::BuildSemaphoreCreateInfo();
     VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
@@ -219,6 +238,7 @@ void VulkanRHI::CreateSyncStructures() {
                                &render_semaphore_));
 
     destruction_queue_default_.Push([=]() {
+        vkDestroyFence(device_, upload_context_.upload_fence, nullptr);
         vkDestroyFence(device_, render_fence_, nullptr);
         vkDestroySemaphore(device_, present_semaphore_, nullptr);
         vkDestroySemaphore(device_, render_semaphore_, nullptr);
@@ -403,8 +423,11 @@ void VulkanRHI::Render() {
     BindPipeline();
     vkCmdDraw(main_command_buffer_, 3, 1, 0, 0);
     
+    RenderImGui();
+
     vkCmdEndRenderPass(main_command_buffer_);
     VK_CHECK(vkEndCommandBuffer(main_command_buffer_));
+
 
     // prepare the submission to the queue.
     // we want to wait on the _presentSemaphore, 
@@ -516,6 +539,30 @@ bool VulkanRHI::LoadShaderModule(const char*     filepath,
 
 VkResult VulkanRHI::WaitForLastFrame() {
     return vkWaitForFences(device_, 1, &render_fence_, true, kTimeout);
+}
+
+void VulkanRHI::ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func) {
+    VkCommandBuffer cmd = upload_context_.command_buffer;
+
+    // begin the command buffer recording. 
+    // We will use this command buffer exactly once before resetting
+    VkCommandBufferBeginInfo cmdBeginInfo = vk::BuildCommandBufferBeginInfo(
+        VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
+    VK_CHECK(vkBeginCommandBuffer(cmd, &cmdBeginInfo));
+    func(cmd);
+    VK_CHECK(vkEndCommandBuffer(cmd));
+
+    // submit command buffer to the queue and execute it.
+    // _uploadFence will now block until the graphic commands finish execution
+    VkSubmitInfo submit = vk::BuildSubmitInfo(&cmd);
+    VK_CHECK(vkQueueSubmit(graphics_queue_, 1, &submit,
+                           upload_context_.upload_fence));
+
+    vkWaitForFences(device_, 1, &upload_context_.upload_fence, true, kTimeout);
+    vkResetFences(device_, 1, &upload_context_.upload_fence);
+
+    // reset the command buffers inside the command pool
+    vkResetCommandPool(device_, upload_context_.command_pool, 0);
 }
 
 }  // namespace lumi
