@@ -49,6 +49,36 @@ void Init() {
             value_string += '\"'; 
             value_string += p_array->Get(desc->index_);
             value_string += '\"';
+        } else if (desc->type == CVarType::kVec2f) {
+            auto         p_array = cvars_system.GetCVarArrayPtr<Vec2fType>();
+            const Vec2f& v       = p_array->Get(desc->index_);
+            value_string += "Vec2f(";
+            value_string += std::to_string(v.x);
+            value_string += ", ";
+            value_string += std::to_string(v.y);
+            value_string += ")";
+        } else if (desc->type == CVarType::kVec3f) {
+            auto         p_array = cvars_system.GetCVarArrayPtr<Vec3fType>();
+            const Vec3f& v       = p_array->Get(desc->index_);
+            value_string += "Vec3f(";
+            value_string += std::to_string(v.x);
+            value_string += ", ";
+            value_string += std::to_string(v.y);
+            value_string += ", ";
+            value_string += std::to_string(v.z);
+            value_string += ")";
+        } else if (desc->type == CVarType::kVec4f) {
+            auto         p_array = cvars_system.GetCVarArrayPtr<Vec4fType>();
+            const Vec4f& v       = p_array->Get(desc->index_);
+            value_string += "Vec4f(";
+            value_string += std::to_string(v.x);
+            value_string += ", ";
+            value_string += std::to_string(v.y);
+            value_string += ", ";
+            value_string += std::to_string(v.z);
+            value_string += ", ";
+            value_string += std::to_string(v.w);
+            value_string += ")";
         }
         cvars_info += "\n- ";
         cvars_info += desc->name;
@@ -91,6 +121,24 @@ CVarString CreateString(const std::string_view& name, const StringType& value,
                                                          description, flags);
 }
 
+CVarVec2f CreateVec2f(const std::string_view& name, const Vec2fType& value,
+                      const std::string_view& description, CVarFlags flags) {
+    return CVarSystem::Instance().CreateCVar<Vec2fType>(name, value,
+                                                        description, flags);
+}
+
+CVarVec3f CreateVec3f(const std::string_view& name, const Vec3fType& value,
+                      const std::string_view& description, CVarFlags flags) {
+    return CVarSystem::Instance().CreateCVar<Vec3fType>(name, value,
+                                                        description, flags);
+}
+
+CVarVec4f CreateVec4f(const std::string_view& name, const Vec4fType& value,
+                      const std::string_view& description, CVarFlags flags) {
+    return CVarSystem::Instance().CreateCVar<Vec4fType>(name, value,
+                                                        description, flags);
+}
+
 CVarBool GetBool(const std::string_view& name) {
     return CVarSystem::Instance().GetCVar<BoolType>(name);
 }
@@ -107,6 +155,18 @@ CVarString GetString(const std::string_view& name) {
     return CVarSystem::Instance().GetCVar<StringType>(name);
 }
 
+CVarVec2f GetVec2f(const std::string_view& name) {
+    return CVarSystem::Instance().GetCVar<Vec2fType>(name);
+}
+
+CVarVec3f GetVec3f(const std::string_view& name) {
+    return CVarSystem::Instance().GetCVar<Vec3fType>(name);
+}
+
+CVarVec4f GetVec4f(const std::string_view& name) {
+    return CVarSystem::Instance().GetCVar<Vec4fType>(name);
+}
+
 CVarBool SetBool(const std::string_view& name, BoolType value) {
     return CVarSystem::Instance().SetCVar<BoolType>(name, value);
 }
@@ -121,6 +181,18 @@ CVarFloat SetFloat(const std::string_view& name, FloatType value) {
 
 CVarString SetString(const std::string_view& name, const StringType& value) {
     return CVarSystem::Instance().SetCVar<StringType>(name, value);
+}
+
+CVarVec2f SetVec2f(const std::string_view& name, const Vec2fType& value) {
+    return CVarSystem::Instance().SetCVar<Vec2fType>(name, value);
+}
+
+CVarVec3f SetVec3f(const std::string_view& name, const Vec3fType& value) {
+    return CVarSystem::Instance().SetCVar<Vec3fType>(name, value);
+}
+
+CVarVec4f SetVec4f(const std::string_view& name, const Vec4fType& value) {
+    return CVarSystem::Instance().SetCVar<Vec4fType>(name, value);
 }
 
 const CVarDesc& GetCVarDesc(const std::string_view& name) {
@@ -152,6 +224,24 @@ template <>
 CVarString::CVar(const std::string_view& name, const cvars::StringType& value,
                  const std::string_view& description, CVarFlags flags) {
     *this = cvars::CreateString(name, value, description, flags);
+}
+
+template <>
+CVarVec2f::CVar(const std::string_view& name, const cvars::Vec2fType& value,
+                const std::string_view& description, CVarFlags flags) {
+    *this = cvars::CreateVec2f(name, value, description, flags);
+}
+
+template <>
+CVarVec3f::CVar(const std::string_view& name, const cvars::Vec3fType& value,
+                const std::string_view& description, CVarFlags flags) {
+    *this = cvars::CreateVec3f(name, value, description, flags);
+}
+
+template <>
+CVarVec4f::CVar(const std::string_view& name, const cvars::Vec4fType& value,
+                const std::string_view& description, CVarFlags flags) {
+    *this = cvars::CreateVec4f(name, value, description, flags);
 }
 
 template <typename T>
@@ -202,11 +292,17 @@ template struct CVarStorage<cvars::BoolType>;
 template struct CVarStorage<cvars::IntType>;
 template struct CVarStorage<cvars::FloatType>;
 template struct CVarStorage<cvars::StringType>;
+template struct CVarStorage<cvars::Vec2fType>;
+template struct CVarStorage<cvars::Vec3fType>;
+template struct CVarStorage<cvars::Vec4fType>;
 
 template class CVar<cvars::BoolType>;
 template class CVar<cvars::IntType>;
 template class CVar<cvars::FloatType>;
 template class CVar<cvars::StringType>;
+template class CVar<cvars::Vec2fType>;
+template class CVar<cvars::Vec3fType>;
+template class CVar<cvars::Vec4fType>;
 
 #pragma warning(pop)
 

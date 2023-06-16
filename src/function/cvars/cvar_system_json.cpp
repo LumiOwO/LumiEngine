@@ -49,24 +49,26 @@ Json CVarStorage<T>::ToJson() {
 }
 
 Json CVarSystem::ToJson() {
+
+#define CVARS_ARRAY_TO_JSON_(res, arr)      \
+    for (int32_t i = 0; i < arr.cnt; i++) { \
+        Json json = arr.values[i].ToJson(); \
+        UpdateNestingJsonCVar(res, json);   \
+    }
+
     Json res = Json::object();
-    for (int32_t i = 0; i < cvar_arrays_bool.cnt; i++) {
-        Json json = cvar_arrays_bool.values[i].ToJson();
-        UpdateNestingJsonCVar(res, json);
-    }
-    for (int32_t i = 0; i < cvar_arrays_int.cnt; i++) {
-        Json json = cvar_arrays_int.values[i].ToJson();
-        UpdateNestingJsonCVar(res, json);
-    }
-    for (int32_t i = 0; i < cvar_arrays_float.cnt; i++) {
-        Json json = cvar_arrays_float.values[i].ToJson();
-        UpdateNestingJsonCVar(res, json);
-    }
-    for (int32_t i = 0; i < cvar_arrays_string.cnt; i++) {
-        Json json = cvar_arrays_string.values[i].ToJson();
-        UpdateNestingJsonCVar(res, json);
-    }
+
+    CVARS_ARRAY_TO_JSON_(res, cvar_arrays_bool);
+    CVARS_ARRAY_TO_JSON_(res, cvar_arrays_int);
+    CVARS_ARRAY_TO_JSON_(res, cvar_arrays_float);
+    CVARS_ARRAY_TO_JSON_(res, cvar_arrays_string);
+    CVARS_ARRAY_TO_JSON_(res, cvar_arrays_vec2f);
+    CVARS_ARRAY_TO_JSON_(res, cvar_arrays_vec3f);
+    CVARS_ARRAY_TO_JSON_(res, cvar_arrays_vec4f);
+
     return res;
+
+#undef CVARS_ARRAY_TO_JSON_
 }
 
 void CVarSystem::UpdateNestingJsonCVar(Json& root, const Json& j_cvar) {
@@ -89,7 +91,7 @@ void CVarSystem::UpdateNestingJsonCVar(Json& root, const Json& j_cvar) {
         if (!json[key].is_object()) {
             Json j_value = json[key];
             json[key]    = {
-                   {"#value", j_value},
+                {"#value", j_value},
             };
         }
 
@@ -117,7 +119,7 @@ void CVarSystem::CreateCVarsFromJson(const Json&        json,
             CreateCVarsFromJsonLeaf(json, prefix);
         } else if (key[0] == '#') {
             ;
-        } else if (value.is_primitive()) {
+        } else if (value.is_primitive() || value.is_array()) {
             CreateCVarsFromJsonLeaf(value, name);
         } else if (value.is_object()) {
             // parse nesting objects
@@ -149,12 +151,17 @@ void CVarSystem::CreateCVarsFromJsonLeaf(const Json&        leaf,
     if (j_value.is_boolean()) {
         CreateCVar<cvars::BoolType>(name, j_value, description, flags);
     } else if (j_value.is_number_integer()) {
-        CreateCVar<cvars::IntType>(name, j_value, description,  //
-                                   flags);
+        CreateCVar<cvars::IntType>(name, j_value, description, flags);
     } else if (j_value.is_number_float()) {
         CreateCVar<cvars::FloatType>(name, j_value, description, flags);
     } else if (j_value.is_string()) {
         CreateCVar<cvars::StringType>(name, j_value, description, flags);
+    } else if (j_value.is_array() && j_value.size() == 2) {
+        CreateCVar<cvars::Vec2fType>(name, j_value, description, flags);
+    } else if (j_value.is_array() && j_value.size() == 3) {
+        CreateCVar<cvars::Vec3fType>(name, j_value, description, flags);
+    } else if (j_value.is_array() && j_value.size() == 4) {
+        CreateCVar<cvars::Vec4fType>(name, j_value, description, flags);
     } else {
         LOG_WARNING("Ignore console variable \"{}\" due to invalid value type",
                     name);

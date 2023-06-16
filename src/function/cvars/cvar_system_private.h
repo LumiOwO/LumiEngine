@@ -56,10 +56,13 @@ struct CVarArray : public CVarArrayBase {
 
 struct CVarSystem : public ISingleton<CVarSystem> {
     constexpr static int kMaxCVarsCounts[CVarType::kNumOfTypes] = {
-        500,  // kBool
-        500,  // kInt
-        500,  // kFloat
-        200,  // kString
+        100,  // kBool
+        100,  // kInt
+        100,  // kFloat
+        50,   // kString
+        30,   // kVec2f
+        30,   // kVec3f
+        30,   // kVec4f
     };
 
     using CVarArrayBool =
@@ -70,17 +73,29 @@ struct CVarSystem : public ISingleton<CVarSystem> {
         CVarArray<cvars::FloatType, kMaxCVarsCounts[CVarType::kFloat]>;
     using CVarArrayString =
         CVarArray<cvars::StringType, kMaxCVarsCounts[CVarType::kString]>;
+    using CVarArrayVec2f =
+        CVarArray<cvars::Vec2fType, kMaxCVarsCounts[CVarType::kVec2f]>;
+    using CVarArrayVec3f =
+        CVarArray<cvars::Vec3fType, kMaxCVarsCounts[CVarType::kVec3f]>;
+    using CVarArrayVec4f =
+        CVarArray<cvars::Vec4fType, kMaxCVarsCounts[CVarType::kVec4f]>;
 
     CVarArrayBool   cvar_arrays_bool   = CVarArrayBool();
     CVarArrayInt    cvar_arrays_int    = CVarArrayInt();
     CVarArrayFloat  cvar_arrays_float  = CVarArrayFloat();
     CVarArrayString cvar_arrays_string = CVarArrayString();
+    CVarArrayVec2f  cvar_arrays_vec2f  = CVarArrayVec2f();
+    CVarArrayVec3f  cvar_arrays_vec3f  = CVarArrayVec3f();
+    CVarArrayVec4f  cvar_arrays_vec4f  = CVarArrayVec4f();
 
     CVarArrayBase* cvar_arrays_ptrs[CVarType::kNumOfTypes] = {
-        &cvar_arrays_bool,
-        &cvar_arrays_int,
-        &cvar_arrays_float,
-        &cvar_arrays_string,
+        &cvar_arrays_bool,    //
+        &cvar_arrays_int,     //
+        &cvar_arrays_float,   //
+        &cvar_arrays_string,  //
+        &cvar_arrays_vec2f,   //
+        &cvar_arrays_vec3f,   //
+        &cvar_arrays_vec4f,   //
     };
 
     std::unordered_map<uint32_t, CVarDesc> table{};

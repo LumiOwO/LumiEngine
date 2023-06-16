@@ -1,6 +1,9 @@
 #pragma once
 
 #include "glm/glm.hpp"
+#include "glm/gtc/quaternion.hpp"
+#include "glm/gtx/quaternion.hpp"
+
 #include "core/log.h"
 #include "core/json.h"
 
@@ -38,69 +41,68 @@ constexpr float kRad2Deg = 180.0f / kPi;
 
 }  // namespace lumi
 
+
 // formatter for spdlog
 
-template <>
-struct fmt::formatter<lumi::Vec1f> : fmt::formatter<std::string> {
-    auto format(lumi::Vec1f v, format_context& ctx) -> decltype(ctx.out()) {
-        return format_to(ctx.out(), "Vec1f({})", v.x);
-    }
-};
+inline std::ostream& operator<<(std::ostream& os, const lumi::Vec1f& v) {
+    return os << "Vec1f( "  //
+              << v.x        //
+              << ")";
+}
 
-template <>
-struct fmt::formatter<lumi::Vec2f> : fmt::formatter<std::string> {
-    auto format(lumi::Vec2f v, format_context& ctx) -> decltype(ctx.out()) {
-        return format_to(ctx.out(), "Vec2f({}, {})", v.x, v.y);
-    }
-};
+inline std::ostream& operator<<(std::ostream& os, const lumi::Vec2f& v) {
+    return os << "Vec2f( "           //
+              << v.x << ", " << v.y  //
+              << ")";
+}
 
-template <>
-struct fmt::formatter<lumi::Vec3f> : fmt::formatter<std::string> {
-    auto format(lumi::Vec3f v, format_context& ctx) -> decltype(ctx.out()) {
-        return format_to(ctx.out(), "Vec3f({}, {}, {})", v.x, v.y, v.z);
-    }
-};
+inline std::ostream& operator<<(std::ostream& os, const lumi::Vec3f& v) {
+    return os << "Vec3f("                           //
+              << v.x << ", " << v.y << ", " << v.z  //
+              << ")";
+}
 
-template <>
-struct fmt::formatter<lumi::Vec4f> : fmt::formatter<std::string> {
-    auto format(lumi::Vec4f v, format_context& ctx) -> decltype(ctx.out()) {
-        return format_to(ctx.out(), "Vec4f({}, {}, {}, {})", v.x, v.y, v.z,
-                         v.w);
-    }
-};
+inline std::ostream& operator<<(std::ostream& os, const lumi::Vec4f& v) {
+    return os << "Vec4f("                                          //
+              << v.x << ", " << v.y << ", " << v.z << ", " << v.w  //
+              << ")";
+}
+
+inline std::ostream& operator<<(std::ostream& os, const lumi::Quaternion& q) {
+    // order: WXYZ
+    return os << "Quaternion("                                     //
+              << q.w << ", " << q.x << ", " << q.y << ", " << q.z  //
+              << ")";
+}
 
 // !!Important!! GLM matrix memory layout is column-major,
 // !!            but we format the matrix in row-major
 // !!            in order to keep the same as math notations.
-template <>
-struct fmt::formatter<lumi::Mat3x3f> : fmt::formatter<std::string> {
-    auto format(lumi::Mat3x3f m, format_context& ctx) -> decltype(ctx.out()) {
-        return format_to(ctx.out(),
-                         "Mat3x3f({}, {}, {},\n"
-                         "        {}, {}, {},\n"
-                         "        {}, {}, {})",
-                         m[0][0], m[1][0], m[2][0],  //
-                         m[0][1], m[1][1], m[2][1],  //
-                         m[0][2], m[1][2], m[2][2]   //
-        );
-    }
-};
+inline std::ostream& operator<<(std::ostream& os, const lumi::Mat3x3f& m) {
+    // clang-format off
+    return os << "Mat3x3f(\n"
+              << "        " << m[0][0] << ", " << m[1][0] << ", " 
+                            << m[2][0] << ", \n"
+              << "        " << m[0][1] << ", " << m[1][1] << ", " 
+                            << m[2][1] << ", \n"
+              << "        " << m[0][2] << ", " << m[1][2] << ", " 
+                            << m[2][2] << ")";
+    // clang-format on
+}
 
-template <>
-struct fmt::formatter<lumi::Mat4x4f> : fmt::formatter<std::string> {
-    auto format(lumi::Mat4x4f m, format_context& ctx) -> decltype(ctx.out()) {
-        return format_to(ctx.out(),
-                         "Mat4x4f({}, {}, {}, {},\n"
-                         "        {}, {}, {}, {},\n"
-                         "        {}, {}, {}, {},\n"
-                         "        {}, {}, {}, {})",
-                         m[0][0], m[1][0], m[2][0], m[3][0],  //
-                         m[0][1], m[1][1], m[2][1], m[3][1],  //
-                         m[0][2], m[1][2], m[2][2], m[3][2],  //
-                         m[0][3], m[1][3], m[2][3], m[3][3]   //
-        );
-    }
-};
+inline std::ostream& operator<<(std::ostream& os, const lumi::Mat4x4f& m) {
+    // clang-format off
+    return os << "Mat4x4f(\n"
+              << "        " << m[0][0] << ", " << m[1][0] << ", " 
+                            << m[2][0] << ", " << m[3][0] << ", \n"
+              << "        " << m[0][1] << ", " << m[1][1] << ", " 
+                            << m[2][1] << ", " << m[3][1] << ", \n"
+              << "        " << m[0][2] << ", " << m[1][2] << ", " 
+                            << m[2][2] << ", " << m[3][2] << ", \n"
+              << "        " << m[0][3] << ", " << m[1][3] << ", " 
+                            << m[2][3] << ", " << m[3][3] << ")";
+    // clang-format on
+}
 
 // Json converter
 namespace glm {
