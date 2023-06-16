@@ -13,6 +13,8 @@ private:
     VkPhysicalDevice physical_device_{};  // GPU chosen as the default device
     VkDevice         device_{};           // Vulkan device for commands
     VkSurfaceKHR     surface_{};          // Vulkan window surface
+    VmaAllocator     allocator_{};
+
 #ifdef LUMI_ENABLE_DEBUG_LOG
     VkDebugUtilsMessengerEXT debug_messenger_{};  // Vulkan debug output handle
 #endif
@@ -38,7 +40,8 @@ private:
 
     VkPipelineLayout triangle_pipeline_layout_{};
     VkPipeline       triangle_pipeline_{};
-    VkPipeline       red_triangle_pipeline_{};
+    VkPipeline       mesh_pipeline_{};
+    vk::Mesh         triangle_mesh_{};
 
     vk::UploadContext upload_context_{};
 
@@ -80,13 +83,18 @@ private:
 
     void BindPipeline();
 
+    void RenderPass();
+    void GUIPass();
+
     VkResult WaitForLastFrame();
 
     void ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func);
 
     void InitImGui();
 
-    void RenderImGui();
+    void LoadMeshes();
+
+    void UploadMesh(vk::Mesh& vk_mesh);
 };
 
 }  // namespace lumi

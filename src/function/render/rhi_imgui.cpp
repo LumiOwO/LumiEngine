@@ -97,7 +97,7 @@ void VulkanRHI::InitImGui() {
     });
 }
 
-void VulkanRHI::RenderImGui() {
+void VulkanRHI::GUIPass() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
 

@@ -1,6 +1,9 @@
 #include "rhi.h"
 #include "function/cvars/cvar_system.h"
 
+#define VMA_IMPLEMENTATION
+#include "vma/vk_mem_alloc.h"
+
 namespace lumi {
 void VulkanRHI::Init(CreateInfo info) {
     CreateSurface_         = info.CreateSurface;
@@ -16,6 +19,8 @@ void VulkanRHI::Init(CreateInfo info) {
     CreatePipelines();
 
     InitImGui();
+
+    LoadMeshes();
 }
 
 void VulkanRHI::CreateVulkanInstance() {
@@ -91,9 +96,16 @@ void VulkanRHI::CreateVulkanInstance() {
     graphics_queue_ = vkbDevice.get_queue(vkb::QueueType::graphics).value();
     graphics_queue_family_ =
         vkbDevice.get_queue_index(vkb::QueueType::graphics).value();
-    
 
+    //initialize the memory allocator
+    VmaAllocatorCreateInfo allocatorInfo{};
+    allocatorInfo.physicalDevice = physical_device_;
+    allocatorInfo.device         = device_;
+    allocatorInfo.instance       = instance_;
+    vmaCreateAllocator(&allocatorInfo, &allocator_);
+    
     destruction_queue_default_.Push([=]() {
+        vmaDestroyAllocator(allocator_);
         vkDestroyDevice(device_, nullptr);
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
 #ifdef LUMI_ENABLE_DEBUG_LOG
@@ -263,21 +275,21 @@ void VulkanRHI::CreatePipelines() {
         LOG_INFO("Triangle vertex shader successfully loaded");
     }
 
-    VkShaderModule redTriangleFragShader;
-    if (!LoadShaderModule(LUMI_SHADERS_DIR "/redtriangle.frag.spv",
-                          &redTriangleFragShader)) {
+    VkShaderModule meshTriangleFragShader;
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/meshtriangle.frag.spv",
+                          &meshTriangleFragShader)) {
         LOG_ERROR("Error when building the triangle fragment shader module");
     } else {
-        LOG_INFO("Red Triangle fragment shader successfully loaded");
+        LOG_INFO("Mesh Triangle fragment shader successfully loaded");
     }
 
-    VkShaderModule redTriangleVertexShader;
-    if (!LoadShaderModule(LUMI_SHADERS_DIR "/redtriangle.vert.spv",
-                          &redTriangleVertexShader)) {
+    VkShaderModule meshTriangleVertexShader;
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/meshtriangle.vert.spv",
+                          &meshTriangleVertexShader)) {
         LOG_ERROR("Error when building the triangle vertex shader module");
 
     } else {
-        LOG_INFO("Red Triangle vertex shader successfully loaded");
+        LOG_INFO("Mesh Triangle vertex shader successfully loaded");
     }
 
     // build the pipeline layout that controls the inputs/outputs of the shader
@@ -325,25 +337,35 @@ void VulkanRHI::CreatePipelines() {
     // finally build the pipeline
     triangle_pipeline_ = pipeline_builder.Build(device_, render_pass_);
 
-    //build the red triangle pipeline
+    // build the mesh triangle pipeline
     pipeline_builder.shader_stages.clear();
     pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,
-                                               redTriangleVertexShader));
+                                               meshTriangleVertexShader));
     pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT,
-                                               redTriangleFragShader));
-    red_triangle_pipeline_ = pipeline_builder.Build(device_, render_pass_);
+                                               meshTriangleFragShader));
+    vk::VertexInputDescription vertexDescription =
+        vk::GetVertexInputDescription();
+    pipeline_builder.vertex_input_info.pVertexAttributeDescriptions =
+        vertexDescription.attributes.data();
+    pipeline_builder.vertex_input_info.vertexAttributeDescriptionCount =
+        (uint32_t)vertexDescription.attributes.size();
+    pipeline_builder.vertex_input_info.pVertexBindingDescriptions =
+        vertexDescription.bindings.data();
+    pipeline_builder.vertex_input_info.vertexBindingDescriptionCount =
+        (uint32_t)vertexDescription.bindings.size();
+    mesh_pipeline_ = pipeline_builder.Build(device_, render_pass_);
 
     //destroy all shader modules, outside of the queue
     vkDestroyShaderModule(device_, triangleFragShader, nullptr);
     vkDestroyShaderModule(device_, triangleVertexShader, nullptr);
-    vkDestroyShaderModule(device_, redTriangleFragShader, nullptr);
-    vkDestroyShaderModule(device_, redTriangleVertexShader, nullptr);
+    vkDestroyShaderModule(device_, meshTriangleFragShader, nullptr);
+    vkDestroyShaderModule(device_, meshTriangleVertexShader, nullptr);
 
     destruction_queue_default_.Push([=]() {
         vkDestroyPipeline(device_, triangle_pipeline_, nullptr);
-        vkDestroyPipeline(device_, red_triangle_pipeline_, nullptr);
+        vkDestroyPipeline(device_, mesh_pipeline_, nullptr);
         vkDestroyPipelineLayout(device_, triangle_pipeline_layout_, nullptr);
     });
 }
@@ -421,9 +443,10 @@ void VulkanRHI::Render() {
                          VK_SUBPASS_CONTENTS_INLINE);
 
     BindPipeline();
-    vkCmdDraw(main_command_buffer_, 3, 1, 0, 0);
     
-    RenderImGui();
+    RenderPass();
+
+    GUIPass();
 
     vkCmdEndRenderPass(main_command_buffer_);
     VK_CHECK(vkEndCommandBuffer(main_command_buffer_));
@@ -482,7 +505,7 @@ void VulkanRHI::BindPipeline() {
                           triangle_pipeline_);
     } else {
         vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          red_triangle_pipeline_);
+                          mesh_pipeline_);
     }
     
 
@@ -500,6 +523,19 @@ void VulkanRHI::BindPipeline() {
     scissor.offset = {0, 0};
     scissor.extent = extent_;
     vkCmdSetScissor(main_command_buffer_, 0, 1, &scissor);
+}
+
+void VulkanRHI::RenderPass() { 
+    if (cvars::GetBool("colored").value()) {
+        vkCmdDraw(main_command_buffer_, 3, 1, 0, 0); 
+    } else {
+        // bind the mesh vertex buffer with offset 0
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(main_command_buffer_, 0, 1,
+                               &triangle_mesh_.vertex_buffer.buffer, &offset);
+        vkCmdDraw(main_command_buffer_,
+                  (uint32_t)triangle_mesh_.vertices.size(), 1, 0, 0);
+    }
 }
 
 bool VulkanRHI::LoadShaderModule(const char*     filepath,
@@ -563,6 +599,52 @@ void VulkanRHI::ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func) {
 
     // reset the command buffers inside the command pool
     vkResetCommandPool(device_, upload_context_.command_pool, 0);
+}
+
+void VulkanRHI::LoadMeshes() {
+    // make the array 3 vertices long
+    triangle_mesh_.vertices.resize(3);
+
+    // vertex positions
+    triangle_mesh_.vertices[0].position = {1.f, 1.f, 0.0f};
+    triangle_mesh_.vertices[1].position = {-1.f, 1.f, 0.0f};
+    triangle_mesh_.vertices[2].position = {0.f, -1.f, 0.0f};
+
+    // vertex colors, all green
+    triangle_mesh_.vertices[0].color = {0.f, 1.f, 0.0f};  //pure green
+    triangle_mesh_.vertices[1].color = {0.f, 1.f, 0.0f};  //pure green
+    triangle_mesh_.vertices[2].color = {0.f, 1.f, 0.0f};  //pure green
+
+    UploadMesh(triangle_mesh_);
+}
+
+void VulkanRHI::UploadMesh(vk::Mesh& vk_mesh) {
+    // allocate vertex buffer
+    VkBufferCreateInfo bufferInfo{};
+    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferInfo.size  = vk_mesh.vertices.size() * sizeof(vk::Vertex);
+    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+    // let the VMA library know that this data should be writeable by CPU,
+    // but also readable by GPU
+    VmaAllocationCreateInfo vmaAllocInfo{};
+    vmaAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    VK_CHECK(vmaCreateBuffer(allocator_, &bufferInfo, &vmaAllocInfo,
+                             &vk_mesh.vertex_buffer.buffer,
+                             &vk_mesh.vertex_buffer.allocation, nullptr));
+
+    // add the destruction of triangle mesh buffer to the deletion queue
+    destruction_queue_default_.Push([=]() {
+        vmaDestroyBuffer(allocator_, vk_mesh.vertex_buffer.buffer,
+                         vk_mesh.vertex_buffer.allocation);
+    });
+
+    // copy vertex data
+    void* data;
+    vmaMapMemory(allocator_, vk_mesh.vertex_buffer.allocation, &data);
+    memcpy(data, vk_mesh.vertices.data(),
+           vk_mesh.vertices.size() * sizeof(vk::Vertex));
+    vmaUnmapMemory(allocator_, vk_mesh.vertex_buffer.allocation);
 }
 
 }  // namespace lumi
