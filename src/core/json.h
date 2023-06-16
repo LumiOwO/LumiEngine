@@ -28,7 +28,10 @@ inline bool LoadJson(Json &json, const fs::path& filepath) {
     if (!in) return false;
 
     try {
-        json = Json::parse(in);
+        json = Json::parse(in,
+                           /* callback */ nullptr,
+                           /* allow exceptions */ true,
+                           /* ignore_comments */ true);
     } catch (const std::exception& e) {
         LOG_ERROR(e.what());
         return false;

@@ -107,6 +107,8 @@ CVarString SetString(const std::string_view& name, const StringType& value);
 
 const CVarDesc& GetCVarDesc(const std::string_view& name);
 
+void RenderImGui();
+
 };  // namespace cvars
 
 template <>
