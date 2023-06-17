@@ -79,8 +79,17 @@ void Window::GetWindowSize(int& width, int& height) {
     glfwGetWindowSize(glfw_window_, &width, &height);
 }
 
-void Window::ImGuiInitWindowForRHI() {
+void Window::ImGuiWindowInit() {
     ImGui_ImplGlfw_InitForVulkan(glfw_window_, true);
 }
+
+void Window::ImGuiWindowShutdown() {
+    ImGui_ImplGlfw_Shutdown();
+}
+
+void Window::ImGuiWindowNewFrame() {
+    ImGui_ImplGlfw_NewFrame();
+}
+
 
 }  // namespace lumi

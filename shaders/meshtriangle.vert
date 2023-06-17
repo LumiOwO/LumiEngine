@@ -6,8 +6,15 @@ layout (location = 2) in vec3 vColor;
 
 layout (location = 0) out vec3 outColor;
 
+//push constants block
+layout( push_constant ) uniform constants_Classname
+{
+	vec4 push_color;
+	mat4 mvp;
+};
+
 void main()
 {
-	gl_Position = vec4(vPosition, 1.0f);
-	outColor = vColor;
+	gl_Position = mvp * vec4(vPosition, 1.0);
+	outColor = push_color.xyz;
 }

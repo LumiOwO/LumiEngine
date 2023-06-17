@@ -100,6 +100,15 @@ struct CVarSystem : public ISingleton<CVarSystem> {
 
     std::unordered_map<uint32_t, CVarDesc> table{};
 
+    // ImGui context
+    struct ImGuiContext {
+        std::vector<CVarDesc*> cached_descs{};
+        std::string            search_text{};
+        bool                   show_advanced = false;
+        bool                   show_readonly = false;
+    };
+    ImGuiContext imgui_ctx;
+
     // find by name
     template <typename T>
     CVar<T> CreateCVar(const std::string_view& name, const T& value,

@@ -6,7 +6,16 @@ file(GLOB_RECURSE SOURCES CONFIGURE_DEPENDS  *.cpp)
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${HEADERS} ${SOURCES})
 
 add_executable(${LUMI_ENGINE_TARGET} ${HEADERS} ${SOURCES})
-set_target_properties(${LUMI_ENGINE_TARGET} PROPERTIES FOLDER ${CMAKE_PROJECT_NAME})
+
+set_target_properties(
+    ${LUMI_ENGINE_TARGET} PROPERTIES 
+    FOLDER ${CMAKE_PROJECT_NAME})
+
+if(MSVC)
+    set_target_properties(
+        ${LUMI_ENGINE_TARGET} PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$(Configuration)")
+endif()
 
 # ============ Compile flags ============ 
 target_compile_options(${LUMI_ENGINE_TARGET} PUBLIC 

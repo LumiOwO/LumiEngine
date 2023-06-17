@@ -37,6 +37,11 @@ struct Mesh {
     AllocatedBuffer     vertex_buffer{};
 };
 
+struct MeshPushConstants {
+    Vec4f   color{};
+    Mat4x4f mvp{};
+};
+
 // class for destroying vulkan resources
 class DestructionQueue {
 private:

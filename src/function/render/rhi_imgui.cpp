@@ -1,7 +1,8 @@
-#include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "imgui/imgui.h"
 #include "rhi.h"
+
+#include "function/cvars/cvar_system.h"
 
 namespace lumi {
 
@@ -16,8 +17,12 @@ void ImGuiSetStyle() {
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
     ImGuiStyle& style    = ImGui::GetStyle();
-    style.FrameRounding  = 5.0f;
-    style.WindowRounding = 7.0f;
+    //LOG_DEBUG("{}, {}", style.ItemInnerSpacing.x, style.ItemInnerSpacing.y);
+    style.FrameRounding    = 5.0f;
+    style.WindowRounding   = 7.0f;
+    style.ItemSpacing      = {8, 8};
+    style.ItemInnerSpacing = {6, 4};
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, 0.94f);
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -38,7 +43,7 @@ void ImGuiSetStyle() {
     //IM_ASSERT(font != NULL);}
 }
 
-void VulkanRHI::InitImGui() {
+void VulkanRHI::ImGuiInit() {
     // 1: create descriptor pool for IMGUI
     // the size of the pool is very oversize, 
     // but it's copied from imgui demo itself.
@@ -70,7 +75,8 @@ void VulkanRHI::InitImGui() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiSetStyle();
-    ImGuiInitWindowForRHI_();
+    
+    ImGuiWindowInit();
 
     ImGui_ImplVulkan_InitInfo init_info{};
     init_info.Instance       = instance_;
@@ -94,65 +100,29 @@ void VulkanRHI::InitImGui() {
     destruction_queue_default_.Push([=]() {
         vkDestroyDescriptorPool(device_, imguiPool, nullptr);
         ImGui_ImplVulkan_Shutdown();
+        ImGuiWindowShutdown();
+        ImGui::DestroyContext();
     });
 }
 
 void VulkanRHI::GUIPass() {
     ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-
+    ImGuiWindowNewFrame();
     ImGui::NewFrame();
 
-    static bool   show_demo_window    = true;
-    static bool   show_another_window = false;
-    static ImVec4 clear_color         = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImGuiIO& io = ImGui::GetIO();
 
-    // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    if (show_demo_window) ImGui::ShowDemoWindow(&show_demo_window);
+#pragma region Main menu
+    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
 
-    // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-    {
-        static float f       = 0.0f;
-        static int   counter = 0;
+    char title[32];
+    sprintf_s(title, "Menu (FPS = %.1f)###title", io.Framerate);
+    ImGui::Begin(title);
 
-        ImGui::Begin(
-            "Hello, world!");  // Create a window called "Hello, world!" and append into it.
-
-        ImGui::Text(
-            "This is some useful text.");  // Display some text (you can use a format strings too)
-        ImGui::Checkbox(
-            "Demo Window",
-            &show_demo_window);  // Edit bools storing our window open/close state
-        ImGui::Checkbox("Another Window", &show_another_window);
-
-        ImGui::SliderFloat(
-            "float", &f, 0.0f,
-            1.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
-        ImGui::ColorEdit3(
-            "clear color",
-            (float*)&clear_color);  // Edit 3 floats representing a color
-
-        if (ImGui::Button(
-                "Button"))  // Buttons return true when clicked (most widgets return true when edited/activated)
-            counter++;
-        ImGui::SameLine();
-        ImGui::Text("counter = %d", counter);
-
-        ImGuiIO& io = ImGui::GetIO();
-        ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-                    1000.0f / io.Framerate, io.Framerate);
-        ImGui::End();
-    }
-
-    // 3. Show another simple window.
-    if (show_another_window) {
-        ImGui::Begin(
-            "Another Window",
-            &show_another_window);  // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-        ImGui::Text("Hello from another window!");
-        if (ImGui::Button("Close Me")) show_another_window = false;
-        ImGui::End();
-    }
+    cvars::ImGuiRender();
+    
+    ImGui::End();
+#pragma endregion
 
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), main_command_buffer_);

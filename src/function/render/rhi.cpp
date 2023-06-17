@@ -5,20 +5,16 @@
 #include "vma/vk_mem_alloc.h"
 
 namespace lumi {
-void VulkanRHI::Init(CreateInfo info) {
-    CreateSurface_         = info.CreateSurface;
-    GetWindowExtent_       = info.GetWindowExtent;
-    ImGuiInitWindowForRHI_ = info.ImGuiInitWindowForRHI;
-
+void VulkanRHI::Init() {
     CreateVulkanInstance();
-    CreateSwapchain(GetWindowExtent_());
+    CreateSwapchain(GetWindowExtent());
     CreateCommands();
     CreateDefaultRenderPass();
     CreateFrameBuffers();
     CreateSyncStructures();
     CreatePipelines();
 
-    InitImGui();
+    ImGuiInit();
 
     LoadMeshes();
 }
@@ -41,7 +37,7 @@ void VulkanRHI::CreateVulkanInstance() {
 #endif
 
     // create the surface of the window
-    VK_CHECK(CreateSurface_(instance_, &surface_));
+    VK_CHECK(CreateSurface(instance_, &surface_));
 
     // use vkbootstrap to select a GPU.
     // We want a GPU that can write to the surface and supports Vulkan 1.1
@@ -298,6 +294,18 @@ void VulkanRHI::CreatePipelines() {
     auto pipeline_layout_info = vk::BuildPipelineLayoutCreateInfo();
     VK_CHECK(vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr,
                                     &triangle_pipeline_layout_));
+
+    auto mesh_pipeline_layout_info = vk::BuildPipelineLayoutCreateInfo();
+    // setup push constants VkPushConstantRange push_constant;
+    VkPushConstantRange push_constant;
+    push_constant.offset = 0;
+    push_constant.size = sizeof(vk::MeshPushConstants);
+    push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    mesh_pipeline_layout_info.pPushConstantRanges    = &push_constant;
+    mesh_pipeline_layout_info.pushConstantRangeCount = 1;
+    VK_CHECK(vkCreatePipelineLayout(device_, &mesh_pipeline_layout_info,
+                                    nullptr, &mesh_pipeline_layout_));
     
     // build the stage-create-info for both vertex and fragment stages.
     // This lets the pipeline know the shader modules per stage
@@ -355,6 +363,7 @@ void VulkanRHI::CreatePipelines() {
         vertexDescription.bindings.data();
     pipeline_builder.vertex_input_info.vertexBindingDescriptionCount =
         (uint32_t)vertexDescription.bindings.size();
+    pipeline_builder.pipeline_layout = mesh_pipeline_layout_;
     mesh_pipeline_ = pipeline_builder.Build(device_, render_pass_);
 
     //destroy all shader modules, outside of the queue
@@ -367,6 +376,7 @@ void VulkanRHI::CreatePipelines() {
         vkDestroyPipeline(device_, triangle_pipeline_, nullptr);
         vkDestroyPipeline(device_, mesh_pipeline_, nullptr);
         vkDestroyPipelineLayout(device_, triangle_pipeline_layout_, nullptr);
+        vkDestroyPipelineLayout(device_, mesh_pipeline_layout_, nullptr);
     });
 }
 
@@ -380,7 +390,7 @@ void VulkanRHI::Finalize() {
 void VulkanRHI::RecreateSwapChain() {
     WaitForLastFrame();
 
-    VkExtent2D extent = GetWindowExtent_();
+    VkExtent2D extent = GetWindowExtent();
     if (extent.width == 0 || extent.height == 0) return;
 
     destruction_queue_swapchain_.Flush();
@@ -389,8 +399,6 @@ void VulkanRHI::RecreateSwapChain() {
 }
 
 void VulkanRHI::Render() {
-    static int _frame_number = 0;
-
     // wait until the GPU has finished rendering the last frame.
     VK_CHECK(WaitForLastFrame());
 
@@ -423,7 +431,7 @@ void VulkanRHI::Render() {
 
     //make a clear-color from frame number. This will flash with a 120*pi frame period.
     VkClearValue clearValue{};
-    float        flash = std::abs(std::sin(_frame_number / 120.f));
+    float        flash = std::abs(std::sin(frame_number_ / 120.f));
     clearValue.color   = {{flash, flash, flash, 1.0f}};
 
     // start the main renderpass.
@@ -496,7 +504,7 @@ void VulkanRHI::Render() {
     }
 
     // increase the number of frames drawn
-    _frame_number++;
+    frame_number_++;
 }
 
 void VulkanRHI::BindPipeline() {
@@ -533,6 +541,29 @@ void VulkanRHI::RenderPass() {
         VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(main_command_buffer_, 0, 1,
                                &triangle_mesh_.vertex_buffer.buffer, &offset);
+
+        // make a model view matrix for rendering the object camera position
+        Vec3f camPos = {0.f, 0.f, -2.f};
+
+        Mat4x4f view = glm::translate(Mat4x4f(1.f), camPos);
+        // camera projection
+        Mat4x4f projection =
+            glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+        projection[1][1] *= -1;
+        // model rotation
+        Mat4x4f model = glm::rotate(
+            Mat4x4f{1.0f}, glm::radians(frame_number_ * 0.4f), Vec3f(0, 1, 0));
+        // calculate final mesh matrix
+        Mat4x4f mvp = projection * view * model;
+
+        vk::MeshPushConstants constants{};
+        constants.mvp = mvp;
+        constants.color = Vec4f(cvars::GetVec3f("color").value(), 1.0f);
+
+        // upload the matrix to the GPU via push constants
+        vkCmdPushConstants(main_command_buffer_, mesh_pipeline_layout_,
+                           VK_SHADER_STAGE_VERTEX_BIT, 0,
+                           sizeof(vk::MeshPushConstants), &constants);
         vkCmdDraw(main_command_buffer_,
                   (uint32_t)triangle_mesh_.vertices.size(), 1, 0, 0);
     }

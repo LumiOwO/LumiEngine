@@ -41,7 +41,9 @@ public:
 
     void GetWindowSize(int& width, int& height);
 
-    void ImGuiInitWindowForRHI();
+    void ImGuiWindowInit();
+    void ImGuiWindowShutdown();
+    void ImGuiWindowNewFrame();
 
     void RegisterOnKeyFunc(OnKeyFunc func) {
         on_key_func_list_.emplace_back(func);

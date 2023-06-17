@@ -39,24 +39,31 @@ private:
     VkFence                   render_fence_{};
 
     VkPipelineLayout triangle_pipeline_layout_{};
+    VkPipelineLayout mesh_pipeline_layout_{};
     VkPipeline       triangle_pipeline_{};
     VkPipeline       mesh_pipeline_{};
     vk::Mesh         triangle_mesh_{};
 
     vk::UploadContext upload_context_{};
 
+    int frame_number_ = 0;
+
 public:
     using CreateSurfaceFunc =
         std::function<VkResult(VkInstance, VkSurfaceKHR*)>;
-    using GetWindowExtentFunc = std::function<VkExtent2D()>;
-    using ImGuiInitWindowForRHIFunc = std::function<void()>;
-    struct CreateInfo {
-        CreateSurfaceFunc         CreateSurface{};
-        GetWindowExtentFunc       GetWindowExtent{};
-        ImGuiInitWindowForRHIFunc ImGuiInitWindowForRHI{};
-    };
+    using GetWindowExtentFunc     = std::function<VkExtent2D()>;
+    using ImGuiWindowInitFunc     = std::function<void()>;
+    using ImGuiWindowShutdownFunc = std::function<void()>;
+    using ImGuiWindowNewFrameFunc = std::function<void()>;
 
-    void Init(CreateInfo info);
+    // function objects provided by window
+    CreateSurfaceFunc       CreateSurface{};
+    GetWindowExtentFunc     GetWindowExtent{};
+    ImGuiWindowInitFunc     ImGuiWindowInit{};
+    ImGuiWindowShutdownFunc ImGuiWindowShutdown{};
+    ImGuiWindowNewFrameFunc ImGuiWindowNewFrame{};
+    
+    void Init();
 
     void Finalize();
 
@@ -66,11 +73,6 @@ public:
                           VkShaderModule* out_shader_module);
 
 private:
-    // function objects provided by window
-    CreateSurfaceFunc         CreateSurface_{};
-    GetWindowExtentFunc       GetWindowExtent_{};
-    ImGuiInitWindowForRHIFunc ImGuiInitWindowForRHI_{};
-
     void CreateVulkanInstance();
     void CreateSwapchain(VkExtent2D extent);
     void CreateCommands();
@@ -90,7 +92,7 @@ private:
 
     void ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func);
 
-    void InitImGui();
+    void ImGuiInit();
 
     void LoadMeshes();
 

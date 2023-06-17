@@ -13,7 +13,7 @@ Json CVarStorage<T>::ToJson() {
     Json* p_json = &res;
     do {
         size_t end_pos = name.find('.', start_pos);
-        if (end_pos == name.npos) break;
+        if (end_pos == std::string::npos) break;
 
         std::string_view level_name =
             name.substr(start_pos, end_pos - start_pos);

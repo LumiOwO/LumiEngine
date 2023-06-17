@@ -11,20 +11,21 @@ void Engine::Init() {
     window_->Init();
 
     // Init RHI
-    VulkanRHI::CreateInfo info{};
-    info.CreateSurface = [=](VkInstance instance, VkSurfaceKHR* p_surface) {
+    rhi_ = std::make_shared<VulkanRHI>();
+
+    rhi_->CreateSurface = [=](VkInstance instance, VkSurfaceKHR* p_surface) {
         return window_->CreateSurface(instance, p_surface);
     };
-    info.GetWindowExtent = [=]() {
+    rhi_->GetWindowExtent = [=]() {
         int width, height;
         window_->GetWindowSize(width, height);
         return VkExtent2D{(uint32_t)width, (uint32_t)height};
     };
-    info.ImGuiInitWindowForRHI = [=]() {
-        window_->ImGuiInitWindowForRHI();
-    };
-    rhi_ = std::make_shared<VulkanRHI>();
-    rhi_->Init(info);
+    rhi_->ImGuiWindowInit     = [=]() { window_->ImGuiWindowInit(); };
+    rhi_->ImGuiWindowShutdown = [=]() { window_->ImGuiWindowShutdown(); };
+    rhi_->ImGuiWindowNewFrame = [=]() { window_->ImGuiWindowNewFrame(); };
+
+    rhi_->Init();
 
     // Init user input
     user_input_ = std::make_shared<UserInput>();

@@ -8,12 +8,10 @@
 namespace lumi {
 
 enum CVarFlags {
-    kNone          = 0,
-    kNoEdit        = 1 << 1,
-    kEditReadOnly  = 1 << 2,
-    kAdvanced      = 1 << 3,
-    kEditCheckbox  = 1 << 8,
-    kEditFloatDrag = 1 << 9,
+    kNone     = 0,
+    kReadOnly = 1 << 1,
+    kAdvanced = 1 << 2,
+    kIsColor  = 1 << 3,
 };
 
 enum CVarType {
@@ -133,7 +131,7 @@ CVarVec4f  SetVec4f(const std::string_view& name, const StringType& value);
 
 const CVarDesc& GetCVarDesc(const std::string_view& name);
 
-void RenderImGui();
+void ImGuiRender();
 
 };  // namespace cvars
 

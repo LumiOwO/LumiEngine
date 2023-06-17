@@ -1,7 +1,12 @@
 {
+  "color": [
+    0.7254902124404907,
+    0.729411780834198,
+    0.15294118225574493
+  ],
   "colored": {
     "#description": "tolored",
-    "#value": true
+    "#value": false
   },
   "test": {
     "#value": false,
