@@ -18115,7 +18115,9 @@ class serializer
                     return;
                 }
 
-                if (pretty_print)
+                auto elementType = val.m_value.array->begin()->m_type;
+                if (pretty_print && 
+                    (elementType == value_t::array || elementType == value_t::object))
                 {
                     o->write_characters("[\n", 2);
 

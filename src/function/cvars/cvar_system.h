@@ -9,10 +9,19 @@ namespace lumi {
 
 enum CVarFlags {
     kNone     = 0,
-    kReadOnly = 1 << 1,
-    kAdvanced = 1 << 2,
+    kReadOnly = 1 << 0,
+    kAdvanced = 1 << 1,
+    kIsUnit   = 1 << 2,
     kIsColor  = 1 << 3,
 };
+
+inline CVarFlags operator|(const CVarFlags& a, const CVarFlags& b) {
+    return static_cast<CVarFlags>(uint32_t(a) | uint32_t(b));
+}
+
+inline CVarFlags& operator|=(CVarFlags& a, const CVarFlags& b) {
+    return (a = a | b);
+}
 
 enum CVarType {
     kBool = 0,

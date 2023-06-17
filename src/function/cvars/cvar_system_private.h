@@ -4,6 +4,8 @@
 
 #include <fstream>
 #include <memory>
+#include <map>
+#include <set>
 #include <unordered_map>
 
 #include "core/hash.h"
@@ -101,11 +103,17 @@ struct CVarSystem : public ISingleton<CVarSystem> {
     std::unordered_map<uint32_t, CVarDesc> table{};
 
     // ImGui context
+    struct ImGuiCVarTreeNode {
+        std::map<std::string, ImGuiCVarTreeNode> children{};
+        std::string                              name{};
+        std::set<CVarDesc*>                      descs{};
+    };
     struct ImGuiContext {
-        std::vector<CVarDesc*> cached_descs{};
-        std::string            search_text{};
-        bool                   show_advanced = false;
-        bool                   show_readonly = false;
+        ImGuiCVarTreeNode cached_cvars_root{};
+        std::string       search_text{};
+        bool              show_advanced = false;
+        bool              show_readonly = true;
+        bool              inited        = false;
     };
     ImGuiContext imgui_ctx;
 

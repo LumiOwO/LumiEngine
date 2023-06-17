@@ -40,8 +40,17 @@ Json CVarStorage<T>::ToJson() {
         if (!description.empty()) {
             json["#description"] = p_desc->description;
         }
-        if (flags != CVarFlags::kNone) {
-            json["#flags"] = p_desc->flags;
+        if (flags & CVarFlags::kReadOnly) {
+            json["#readonly"] = true;
+        }
+        if (flags & CVarFlags::kAdvanced) {
+            json["#advanced"] = true;
+        }
+        if (flags & CVarFlags::kIsUnit) {
+            json["#is_unit"] = true;
+        }
+        if (flags & CVarFlags::kIsColor) {
+            json["#is_color"] = true;
         }
     }
 
@@ -144,9 +153,13 @@ void CVarSystem::CreateCVarsFromJsonLeaf(const Json&        leaf,
         (leaf.is_object() && leaf.contains("#description"))
             ? leaf["#description"]
             : "";
-    CVarFlags flags = (leaf.is_object() && leaf.contains("#flags"))
-                          ? leaf["#flags"]
-                          : CVarFlags::kNone;
+    CVarFlags flags = CVarFlags::kNone;
+    if (leaf.is_object()) {
+        if (leaf.value("#readonly", false)) flags |= CVarFlags::kReadOnly;
+        if (leaf.value("#advanced", false)) flags |= CVarFlags::kAdvanced;
+        if (leaf.value("#is_unit" , false)) flags |= CVarFlags::kIsUnit;
+        if (leaf.value("#is_color", false)) flags |= CVarFlags::kIsColor;
+    }
 
     if (j_value.is_boolean()) {
         CreateCVar<cvars::BoolType>(name, j_value, description, flags);

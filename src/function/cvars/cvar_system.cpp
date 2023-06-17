@@ -18,15 +18,15 @@ void Init() {
         exit(1);
     }
 
-    auto& cvars_system = CVarSystem::Instance();
-    cvars_system.CreateCVarsFromJson(cvars_json);
+    auto& cvar_system = CVarSystem::Instance();
+    cvar_system.CreateCVarsFromJson(cvars_json);
 
 #ifdef LUMI_ENABLE_DEBUG_LOG
     std::string cvars_info{};
     cvars_info += "Loaded console variables:";
 
     std::vector<CVarDesc*> descs;
-    for (auto& [hash, desc] : cvars_system.table) {
+    for (auto& [hash, desc] : cvar_system.table) {
         descs.emplace_back(&desc);
     }
     std::sort(
@@ -36,30 +36,27 @@ void Init() {
     for (CVarDesc* desc : descs) {
         std::string value_string{};
         if (desc->type == CVarType::kBool) {
-            auto p_array = cvars_system.GetCVarArrayPtr<BoolType>();
-            value_string += p_array->Get(desc->index_) ? "true" : "false";
+            value_string +=
+                cvar_system.GetValue<BoolType>(desc->index_) ? "true" : "false";
         } else if (desc->type == CVarType::kInt) {
-            auto p_array = cvars_system.GetCVarArrayPtr<IntType>();
-            value_string += std::to_string(p_array->Get(desc->index_));
+            value_string +=
+                std::to_string(cvar_system.GetValue<IntType>(desc->index_));
         } else if (desc->type == CVarType::kFloat) {
-            auto p_array = cvars_system.GetCVarArrayPtr<FloatType>();
-            value_string += std::to_string(p_array->Get(desc->index_));
+            value_string +=
+                std::to_string(cvar_system.GetValue<FloatType>(desc->index_));
         } else if (desc->type == CVarType::kString) {
-            auto p_array = cvars_system.GetCVarArrayPtr<StringType>();
-            value_string += '\"'; 
-            value_string += p_array->Get(desc->index_);
+            value_string += '\"';
+            value_string += cvar_system.GetValue<StringType>(desc->index_);
             value_string += '\"';
         } else if (desc->type == CVarType::kVec2f) {
-            auto         p_array = cvars_system.GetCVarArrayPtr<Vec2fType>();
-            const Vec2f& v       = p_array->Get(desc->index_);
+            const Vec2f& v = cvar_system.GetValue<Vec2fType>(desc->index_);
             value_string += "Vec2f(";
             value_string += std::to_string(v.x);
             value_string += ", ";
             value_string += std::to_string(v.y);
             value_string += ")";
         } else if (desc->type == CVarType::kVec3f) {
-            auto         p_array = cvars_system.GetCVarArrayPtr<Vec3fType>();
-            const Vec3f& v       = p_array->Get(desc->index_);
+            const Vec3f& v = cvar_system.GetValue<Vec3fType>(desc->index_);
             value_string += "Vec3f(";
             value_string += std::to_string(v.x);
             value_string += ", ";
@@ -68,8 +65,7 @@ void Init() {
             value_string += std::to_string(v.z);
             value_string += ")";
         } else if (desc->type == CVarType::kVec4f) {
-            auto         p_array = cvars_system.GetCVarArrayPtr<Vec4fType>();
-            const Vec4f& v       = p_array->Get(desc->index_);
+            const Vec4f& v = cvar_system.GetValue<Vec4fType>(desc->index_);
             value_string += "Vec4f(";
             value_string += std::to_string(v.x);
             value_string += ", ";
@@ -80,6 +76,7 @@ void Init() {
             value_string += std::to_string(v.w);
             value_string += ")";
         }
+
         cvars_info += "\n- ";
         cvars_info += desc->name;
         cvars_info += " = ";

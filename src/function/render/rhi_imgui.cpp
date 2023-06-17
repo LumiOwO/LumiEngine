@@ -17,12 +17,14 @@ void ImGuiSetStyle() {
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
     ImGuiStyle& style    = ImGui::GetStyle();
-    //LOG_DEBUG("{}, {}", style.ItemInnerSpacing.x, style.ItemInnerSpacing.y);
+    //LOG_DEBUG("{}, {}", style.ItemInnerSpacing.x, style.DisabledAlpha);
     style.FrameRounding    = 5.0f;
     style.WindowRounding   = 7.0f;
     style.ItemSpacing      = {8, 8};
     style.ItemInnerSpacing = {6, 4};
-    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, 0.94f);
+    style.DisabledAlpha    = 0.3f;
+
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.f, 0.f, 0.f, 0.94f);
 
     // Load Fonts
     // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
@@ -112,11 +114,18 @@ void VulkanRHI::GUIPass() {
 
     ImGuiIO& io = ImGui::GetIO();
 
+    ImGui::ShowDemoWindow();
+    const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(
+        ImVec2(main_viewport->WorkPos.x + 75, main_viewport->WorkPos.y + 50),
+        ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(450, 750), ImGuiCond_FirstUseEver);
+
 #pragma region Main menu
-    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
+    ImGui::SetNextWindowCollapsed(false, ImGuiCond_Once);
 
     char title[32];
-    sprintf_s(title, "Menu (FPS = %.1f)###title", io.Framerate);
+    sprintf_s(title, "Menu (FPS = %.1f)###menu", io.Framerate);
     ImGui::Begin(title);
 
     cvars::ImGuiRender();

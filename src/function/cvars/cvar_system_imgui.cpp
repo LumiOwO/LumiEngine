@@ -5,127 +5,199 @@
 #include "imgui/imgui.h"
 #include "imgui/misc/cpp/imgui_stdlib.h"
 
+#include "core/scope_guard.h"
+
 namespace lumi {
 
 // definitions of cvars namespace functions
 namespace cvars {
 
-void UpdateCachedDescs() {
+void CacheCVar(CVarSystem::ImGuiCVarTreeNode* root, CVarDesc* desc) {
+    const std::string& name      = desc->name;
+    size_t             start_pos = 0;
+
+    // nesting
+    auto p = root;
+    do {
+        size_t end_pos = name.find('.', start_pos);
+        if (end_pos == std::string::npos) break;
+
+        const std::string& level_name =
+            name.substr(start_pos, end_pos - start_pos);
+        p         = &p->children[level_name];
+        p->name   = level_name;
+        start_pos = end_pos + 1;
+    } while (true);
+
+    p->descs.insert(desc);
+}
+
+void UpdateCachedCVars() {
     CVarSystem& cvar_system = CVarSystem::Instance();
 
     CVarSystem::ImGuiContext& ctx = cvar_system.imgui_ctx;
-    ctx.cached_descs.clear();
-
-    auto FilterCVarDesc = [&ctx](CVarDesc* p_desc) {
-        bool is_readonly = p_desc->flags & CVarFlags::kReadOnly;
-        bool is_advanced = p_desc->flags & CVarFlags::kAdvanced;
-
-        if (!ctx.show_readonly && is_readonly) return;
-        if (!ctx.show_advanced && is_advanced) return;
-
-        if (p_desc->name.find(ctx.search_text) != std::string::npos) {
-            ctx.cached_descs.emplace_back(p_desc);
-        };
-    };
+    ctx.cached_cvars_root         = {};
 
     for (auto& [hash, desc] : cvar_system.table) {
-        FilterCVarDesc(&desc);
+        bool is_readonly = desc.flags & CVarFlags::kReadOnly;
+        bool is_advanced = desc.flags & CVarFlags::kAdvanced;
+
+        if (!ctx.show_readonly && is_readonly) continue;
+        if (!ctx.show_advanced && is_advanced) continue;
+
+        if (ctx.search_text.empty() ||
+            desc.name.find(ctx.search_text) != std::string::npos) {
+            CacheCVar(&ctx.cached_cvars_root, &desc);
+        };
+    };
+}
+
+void ImGuiShowCVarsDesc(CVarDesc* desc) {
+    ImGui::PushID(desc);
+    ImGui::PushItemWidth(ImGui::GetFontSize() * -0.01f);
+    if (desc->flags & CVarFlags::kReadOnly) {
+        ImGui::BeginDisabled();
     }
 
-    std::sort(
-        ctx.cached_descs.begin(), ctx.cached_descs.end(),
-        [](const CVarDesc* a, const CVarDesc* b) { return a->name < b->name; });
+    ScopeGuard guard = [=]() {
+        if (desc->flags & CVarFlags::kReadOnly) {
+            ImGui::EndDisabled();
+        }
+        ImGui::PopItemWidth();
+        ImGui::PopID();
+    };
+     
+    bool is_unit = (desc->flags & CVarFlags::kIsUnit) ||
+                   (desc->flags & CVarFlags::kIsColor);
+    float v_min   = 0.f;
+    float v_max   = is_unit ? 1.f : 0.f;
+    float v_speed = is_unit ? 0.001f : .125f;
+
+    CVarSystem& cvar_system = CVarSystem::Instance();
+    if (desc->type == CVarType::kBool) {
+        ImGui::Checkbox("", cvar_system.GetPtr<BoolType>(desc->index_));
+    } else if (desc->type == CVarType::kString) {
+        ImGui::InputText("", cvar_system.GetPtr<StringType>(desc->index_));
+    } else if (desc->type == CVarType::kInt) {
+        ImGui::DragInt("", cvar_system.GetPtr<IntType>(desc->index_), v_speed,
+                       (int)v_min, (int)v_max, "%d",
+                       ImGuiSliderFlags_AlwaysClamp);
+    } else if (desc->type == CVarType::kFloat) {
+        ImGui::DragFloat("", cvar_system.GetPtr<FloatType>(desc->index_),
+                         v_speed, v_min, v_max, "%.3f",
+                         ImGuiSliderFlags_AlwaysClamp);
+    } else if (desc->type == CVarType::kVec2f) {
+        ImGui::DragFloat2(
+            "", (float*)cvar_system.GetPtr<Vec2fType>(desc->index_), v_speed,
+            v_min, v_max, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+    } else if (desc->type == CVarType::kVec3f) {
+        if (desc->flags & CVarFlags::kIsColor) {
+            ImGui::ColorPicker3(
+                "", (float*)cvar_system.GetPtr<Vec3fType>(desc->index_));
+        } else {
+            ImGui::DragFloat3(
+                "", (float*)cvar_system.GetPtr<Vec3fType>(desc->index_),
+                v_speed, v_min, v_max, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+        }
+    } else if (desc->type == CVarType::kVec4f) {
+        if (desc->flags & CVarFlags::kIsColor) {
+            ImGui::ColorPicker4(
+                "", (float*)cvar_system.GetPtr<Vec4fType>(desc->index_));
+        } else {
+            ImGui::DragFloat4(
+                "", (float*)cvar_system.GetPtr<Vec4fType>(desc->index_),
+                v_speed, v_min, v_max, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+        }
+    }
+
+}
+
+void ShowCVarsInCurrentNode(CVarSystem::ImGuiCVarTreeNode* node) {
+    if (node->name.empty()) {
+        // root node
+        if (node->descs.empty()) {
+            return;
+        }
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        if (!ImGui::TreeNode("< Uncategorized >")) {
+            return;
+        }
+    }
+    if (!ImGui::BeginTable("table", 2, ImGuiTableFlags_SizingStretchProp)) {
+        return;
+    }
+    ScopeGuard guard = [=]() {
+        ImGui::EndTable();
+        if (node->name.empty()) {
+            ImGui::TreePop();
+        }
+    };
+
+    for (auto& desc : node->descs) {
+        std::string_view full_name = desc->name;
+        size_t           start_pos = full_name.rfind('.');
+        start_pos = start_pos == std::string::npos ? 0 : start_pos + 1;
+
+        std::string_view last_name =
+            full_name.substr(start_pos, full_name.size());
+        ImGui::TableNextColumn();
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text(last_name.data());
+
+        ImGui::TableNextColumn();
+        ImGuiShowCVarsDesc(desc);
+    }
+}
+
+void ShowCachedCVars(CVarSystem::ImGuiCVarTreeNode* node) {
+    ImGui::PushID(node);
+    ScopeGuard guard = []() { ImGui::PopID(); };
+
+    ShowCVarsInCurrentNode(node);
+
+    for (auto& [name, child] : node->children) {
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+        if (!ImGui::TreeNode(name.c_str())) continue;
+
+        ShowCachedCVars(&child);
+
+        ImGui::TreePop();
+    }
+
 }
 
 void ImGuiRender() {
     ImGui::SetNextItemOpen(true, ImGuiCond_Once);
-    if (!ImGui::TreeNode("Console Variables")) return;
+    if (!ImGui::CollapsingHeader("Console Variables")) return;
 
-    ImGuiIO& io = ImGui::GetIO();
     CVarSystem::ImGuiContext& ctx = CVarSystem::Instance().imgui_ctx;
+    if (!ctx.inited) {
+        UpdateCachedCVars();
+        ctx.inited = true;
+    }
 
     ImGui::Text("Search");
     ImGui::SameLine();
+    ImGui::PushItemWidth(ImGui::GetFontSize() * -0.01f);
     if (ImGui::InputText("##Search", &ctx.search_text)) {
         // Text edited
-        UpdateCachedDescs();
+        UpdateCachedCVars();
     }
-    ImGui::Checkbox("Advanced", &ctx.show_advanced);
-    ImGui::Checkbox("Show Read Only", &ctx.show_readonly);
+    ImGui::PopItemWidth();
+
+    if (ImGui::Checkbox("Show Advanced", &ctx.show_advanced)) {
+        UpdateCachedCVars();
+    }
+    if (ImGui::Checkbox("Show Read Only", &ctx.show_readonly)) {
+        UpdateCachedCVars();
+    }
+    ImGui::Spacing();
     ImGui::Separator();
 
     // Show cvars
-
-
-
-    ImGui::TreePop();
-
-    //static bool   show_demo_window    = true;
-    //static bool   show_another_window = false;
-    //static ImVec4 clear_color         = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    //Vec3f* p_clear_color = cvars::GetVec3f("color").ptr();
-
-    //// 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-    //if (show_demo_window) ImGui::ShowDemoWindow(&show_demo_window);
-
-    //// 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-    //{
-    //    static float f       = 0.0f;
-    //    static int   counter = 0;
-    //    ImGui::SetNextWindowCollapsed(true, ImGuiCond_Once);
-
-    //    // buffer for fps
-    //    char title[32];
-    //    sprintf_s(title, "Menu (FPS = %.1f)###title", io.Framerate);
-    //    ImGui::Begin(title);
-
-    //    if (ImGui::TreeNode("test1")) {
-    //        if (ImGui::TreeNode("test1.1")) {
-    //            if (ImGui::TreeNode("test1.1.1")) {
-    //                if (ImGui::TreeNode("test1.1.1.1")) {
-    //                }
-    //            }
-    //            if (ImGui::TreeNode("test1.1.2")) {
-    //            }
-    //        }
-    //    }
-    //    if (ImGui::TreeNode("test2")) {
-    //    }
-
-    //    ImGui::Text(
-    //        "This is some useful text.");  // Display some text (you can use a format strings too)
-        //ImGui::Checkbox(
-        //    "Demo Window",
-        //    &show_demo_window);  // Edit bools storing our window open/close state
-    //    ImGui::Checkbox("Another Window", &show_another_window);
-
-    //    ImGui::SliderFloat(
-    //        "float", &f, 0.0f,
-    //        1.0f);  // Edit 1 float using a slider from 0.0f to 1.0f
-    //    ImGui::ColorEdit3(
-    //        "clear color",
-    //        (float*)p_clear_color);  // Edit 3 floats representing a color
-
-    //    if (ImGui::Button(
-    //            "Button"))  // Buttons return true when clicked (most widgets return true when edited/activated)
-    //        counter++;
-    //    ImGui::SameLine();
-    //    ImGui::Text("counter = %d", counter);
-
-    //    ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
-    //                1000.0f / io.Framerate, io.Framerate);
-    //    ImGui::End();
-    //}
-
-    //// 3. Show another simple window.
-    //if (show_another_window) {
-    //    ImGui::Begin(
-    //        "Another Window",
-    //        &show_another_window);  // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-    //    ImGui::Text("Hello from another window!");
-    //    if (ImGui::Button("Close Me")) show_another_window = false;
-    //    ImGui::End();
-    //}
+    ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, {30, 4});
+    ShowCachedCVars(&ctx.cached_cvars_root);
+    ImGui::PopStyleVar();
 }
 
 }  // namespace cvars
