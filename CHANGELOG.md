@@ -1,3 +1,6 @@
-## [0.0.1] - 2023-06-10
+## [v0.0.1] - 2023-06-18
 
-- Add GLFW window
+- Base Vulkan pipeline
+- Monkey head example
+- Console variable system
+- ImGui integration

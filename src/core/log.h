@@ -66,7 +66,7 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
 #pragma warning(disable : 4003)
 #if defined(LUMI_FORCE_ASSERT) || !defined(NDEBUG)
 
-// !!Important!!:  These macros are Microsoft specific
+// !!Important:  These macros are Microsoft specific
 #define LOG_ASSERT_CALL_(X, Y)                             X Y
 #define LOG_ASSERT_EXPAND_(...)                            __VA_ARGS__
 #define LOG_ASSERT_GET_ARG4_(a0_, a1_, a2_, a3_, a4_, ...) a4_

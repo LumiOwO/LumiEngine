@@ -85,6 +85,12 @@ if(NOT TARGET vma)
         PROPERTY FOLDER thirdparty/vma)
 endif()
 
+# tiny_obj_loader
+if(NOT TARGET tiny_obj_loader)
+    add_subdirectory(tiny_obj_loader)
+    set_property(TARGET tiny_obj_loader
+        PROPERTY FOLDER thirdparty/tiny_obj_loader)
+endif()
 
 # # Assimp
 # if(NOT TARGET assimp)

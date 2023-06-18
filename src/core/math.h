@@ -75,9 +75,9 @@ inline std::ostream& operator<<(std::ostream& os, const lumi::Quaternion& q) {
               << ")";
 }
 
-// !!Important!! GLM matrix memory layout is column-major,
-// !!            but we format the matrix in row-major
-// !!            in order to keep the same as math notations.
+// !!Important: GLM matrix memory layout is column-major,
+// !!           but we format the matrix in row-major
+// !!           in order to keep the same as math notations.
 inline std::ostream& operator<<(std::ostream& os, const lumi::Mat3x3f& m) {
     // clang-format off
     return os << "Mat3x3f(\n"
@@ -145,9 +145,9 @@ inline void from_json(const lumi::Json& j, lumi::Vec4f& v) {
     v.w = j[3];
 }
 
-// !!Important!! GLM matrix memory layout is column-major,
-// !!            but we format the matrix in row-major
-// !!            in order to keep the same as math notations.
+// !!Important: GLM matrix memory layout is column-major,
+// !!           but we format the matrix in row-major
+// !!           in order to keep the same as math notations.
 
 inline void to_json(lumi::Json& j, const lumi::Mat3x3f& m) {
     // clang-format off

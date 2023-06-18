@@ -14,6 +14,11 @@ struct AllocatedBuffer {
     VmaAllocation allocation{};
 };
 
+struct AllocatedImage {
+    VkImage       image{};
+    VmaAllocation allocation{};
+};
+
 struct UploadContext {
     VkFence         upload_fence{};
     VkCommandPool   command_pool{};

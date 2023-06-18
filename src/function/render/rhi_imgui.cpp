@@ -114,7 +114,7 @@ void VulkanRHI::GUIPass() {
 
     ImGuiIO& io = ImGui::GetIO();
 
-    ImGui::ShowDemoWindow();
+    //ImGui::ShowDemoWindow();
     const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(
         ImVec2(main_viewport->WorkPos.x + 75, main_viewport->WorkPos.y + 50),

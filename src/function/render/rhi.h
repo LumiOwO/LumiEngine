@@ -24,6 +24,9 @@ private:
     VkFormat                 swapchain_image_format_{};
     std::vector<VkImage>     swapchain_images_{};
     std::vector<VkImageView> swapchain_image_views_{};
+    vk::AllocatedImage       depth_image_{};
+    VkImageView              depth_image_view_{};
+    VkFormat                 depth_format_{};
 
     VkQueue         graphics_queue_{};         // queue we will submit to
     uint32_t        graphics_queue_family_{};  // family of that queue
@@ -74,7 +77,7 @@ public:
 
 private:
     void CreateVulkanInstance();
-    void CreateSwapchain(VkExtent2D extent);
+    void CreateSwapchain();
     void CreateCommands();
     void CreateDefaultRenderPass();
     void CreateFrameBuffers();

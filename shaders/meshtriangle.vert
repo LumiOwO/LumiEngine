@@ -16,5 +16,5 @@ layout( push_constant ) uniform constants_Classname
 void main()
 {
 	gl_Position = mvp * vec4(vPosition, 1.0);
-	outColor = push_color.xyz;
+	outColor = vColor.xyz;
 }

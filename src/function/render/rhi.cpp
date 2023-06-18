@@ -4,10 +4,93 @@
 #define VMA_IMPLEMENTATION
 #include "vma/vk_mem_alloc.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader/tiny_obj_loader.h"
+
 namespace lumi {
+
+bool LoadMeshFromObjFile(vk::Mesh& mesh, const fs::path& filepath) {
+    auto absolute_path =
+        filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
+    auto in = std::ifstream(absolute_path);
+
+    // attrib will contain the vertex arrays of the file
+    tinyobj::attrib_t attrib;
+    // shapes contains the info for each separate object in the file
+    std::vector<tinyobj::shape_t> shapes;
+    // materials contains the information about the material of each shape, 
+    // but we won't use it.
+    std::vector<tinyobj::material_t> materials;
+
+    //error and warning output from the load function
+    std::string warn;
+    std::string err;
+
+    // load the OBJ file
+    tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
+                     absolute_path.string().c_str(),
+                     absolute_path.parent_path().string().c_str());
+    // make sure to output the warnings to the console, 
+    // in case there are issues with the file
+    if (!warn.empty()) {
+        LOG_WARNING(warn.c_str());
+    }
+    // if we have any error, print it to the console, and break the mesh loading.
+    // This happens if the file can't be found or is malformed
+    if (!err.empty()) {
+        LOG_ERROR(err.c_str());
+        return false;
+    }
+
+    // TODO: load shapes to index buffer
+    // Loop over shapes
+    for (size_t s = 0; s < shapes.size(); s++) {
+        // Loop over faces(polygon)
+        size_t index_offset = 0;
+        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
+            // hardcode loading to triangles
+            int fv = 3;
+
+            // Loop over vertices in the face.
+            for (size_t v = 0; v < fv; v++) {
+                // access to vertex
+                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+
+                // vertex position
+                tinyobj::real_t vx = attrib.vertices[3LL * idx.vertex_index + 0];
+                tinyobj::real_t vy = attrib.vertices[3LL * idx.vertex_index + 1];
+                tinyobj::real_t vz = attrib.vertices[3LL * idx.vertex_index + 2];
+                // vertex normal
+                tinyobj::real_t nx = attrib.normals[3LL * idx.normal_index + 0];
+                tinyobj::real_t ny = attrib.normals[3LL * idx.normal_index + 1];
+                tinyobj::real_t nz = attrib.normals[3LL * idx.normal_index + 2];
+
+                // copy it into our vertex
+                vk::Vertex new_vert;
+                new_vert.position.x = vx;
+                new_vert.position.y = vy;
+                new_vert.position.z = vz;
+
+                new_vert.normal.x = nx;
+                new_vert.normal.y = ny;
+                new_vert.normal.z = nz;
+
+                // we are setting the vertex color as the vertex normal. 
+                // This is just for display purposes
+                new_vert.color = new_vert.normal;
+
+                mesh.vertices.emplace_back(new_vert);
+            }
+            index_offset += fv;
+        }
+    }
+
+    return true;
+}
+
 void VulkanRHI::Init() {
     CreateVulkanInstance();
-    CreateSwapchain(GetWindowExtent());
+    CreateSwapchain();
     CreateCommands();
     CreateDefaultRenderPass();
     CreateFrameBuffers();
@@ -111,7 +194,9 @@ void VulkanRHI::CreateVulkanInstance() {
     });
 }
 
-void VulkanRHI::CreateSwapchain(VkExtent2D extent) {
+void VulkanRHI::CreateSwapchain() {
+    VkExtent2D extent = GetWindowExtent();
+
     vkb::SwapchainBuilder swapchainBuilder(physical_device_, device_, surface_);
     vkb::Swapchain vkbSwapchain =
         swapchainBuilder
@@ -133,7 +218,33 @@ void VulkanRHI::CreateSwapchain(VkExtent2D extent) {
     swapchain_image_views_  = vkbSwapchain.get_image_views().value();
     swapchain_image_format_ = vkbSwapchain.image_format;
 
+    // depth image size will match the window
+    VkExtent3D depthImageExtent = {extent.width, extent.height, 1};
+    depth_format_               = VK_FORMAT_D32_SFLOAT;
+    // the depth image will be an image with the format 
+    // we selected and Depth Attachment usage flag
+    VkImageCreateInfo dimg_info = vk::BuildImageCreateInfo(
+        depth_format_, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        depthImageExtent);
+    // for the depth image, we want to allocate it from GPU local memory
+    VmaAllocationCreateInfo dimg_allocinfo{};
+    dimg_allocinfo.usage                   = VMA_MEMORY_USAGE_GPU_ONLY;
+    dimg_allocinfo.requiredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+    vmaCreateImage(allocator_, &dimg_info, &dimg_allocinfo, &depth_image_.image,
+                   &depth_image_.allocation, nullptr);
+
+    // build an image-view for the depth image to use for rendering
+    VkImageViewCreateInfo dview_info = vk::BuildImageViewCreateInfo(
+        depth_format_, depth_image_.image, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    VK_CHECK(
+        vkCreateImageView(device_, &dview_info, nullptr, &depth_image_view_));
+
+
     destruction_queue_swapchain_.Push([=]() {
+        vkDestroyImageView(device_, depth_image_view_, nullptr);
+        vmaDestroyImage(allocator_, depth_image_.image,
+                        depth_image_.allocation);
         vkDestroySwapchainKHR(device_, swapchain_, nullptr);
     });
 }
@@ -168,6 +279,8 @@ void VulkanRHI::CreateCommands() {
 }
 
 void VulkanRHI::CreateDefaultRenderPass() {
+    std::vector<VkAttachmentDescription> attachments{};
+
     // the renderpass will use this color attachment.
     VkAttachmentDescription color_attachment{};
     color_attachment.format         = swapchain_image_format_;
@@ -178,6 +291,21 @@ void VulkanRHI::CreateDefaultRenderPass() {
     color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     color_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
     color_attachment.finalLayout    = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    attachments.emplace_back(color_attachment);
+
+    // Depth attachment
+    VkAttachmentDescription depth_attachment{};
+    depth_attachment.flags          = 0;
+    depth_attachment.format         = depth_format_;
+    depth_attachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+    depth_attachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
+    depth_attachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depth_attachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    depth_attachment.finalLayout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    attachments.emplace_back(depth_attachment);
 
     // attachment number will index into the pAttachments array
     // in the parent renderpass itself
@@ -185,19 +313,50 @@ void VulkanRHI::CreateDefaultRenderPass() {
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentReference depth_attachment_ref{};
+    depth_attachment_ref.attachment = 1;
+    depth_attachment_ref.layout =
+        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     // we are going to create 1 subpass, which is the minimum you can do
     VkSubpassDescription subpass{};
     subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments    = &color_attachment_ref;
+    subpass.pDepthStencilAttachment = &depth_attachment_ref;
+
+    std::vector<VkSubpassDependency> dependencies{};
+    // color subpass dependency
+    VkSubpassDependency dependency{};
+    dependency.srcSubpass    = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass    = 0;
+    dependency.srcStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask  = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    dependencies.emplace_back(dependency);
+    // depth subpass dependency
+    VkSubpassDependency depth_dependency{};
+    depth_dependency.srcSubpass   = VK_SUBPASS_EXTERNAL;
+    depth_dependency.dstSubpass   = 0;
+    depth_dependency.srcStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    depth_dependency.srcAccessMask = 0;
+    depth_dependency.dstStageMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+                                    VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    depth_dependency.dstAccessMask =
+        VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    dependencies.emplace_back(depth_dependency);
 
     // create render pass
     VkRenderPassCreateInfo render_pass_info{};
     render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    render_pass_info.attachmentCount = 1;
-    render_pass_info.pAttachments    = &color_attachment;
+    render_pass_info.attachmentCount = (uint32_t)attachments.size();
+    render_pass_info.pAttachments    = attachments.data();
     render_pass_info.subpassCount    = 1;
     render_pass_info.pSubpasses      = &subpass;
+    render_pass_info.dependencyCount = (uint32_t)dependencies.size();
+    render_pass_info.pDependencies   = dependencies.data();
     VK_CHECK(
         vkCreateRenderPass(device_, &render_pass_info, nullptr, &render_pass_));
 
@@ -215,7 +374,12 @@ void VulkanRHI::CreateFrameBuffers() {
     frame_buffers_.resize(swapchain_imagecount);
     // create framebuffers for each of the swapchain image views
     for (size_t i = 0; i < swapchain_imagecount; i++) {
-        fb_info.pAttachments = &swapchain_image_views_[i];
+        std::vector<VkImageView> attachments = {
+            swapchain_image_views_[i],
+            depth_image_view_,
+        };
+        fb_info.attachmentCount = (uint32_t)attachments.size();
+        fb_info.pAttachments    = attachments.data();
         VK_CHECK(vkCreateFramebuffer(device_, &fb_info, nullptr,
                                      &frame_buffers_[i]));
 
@@ -342,6 +506,11 @@ void VulkanRHI::CreatePipelines() {
     // use the triangle layout we created
     pipeline_builder.pipeline_layout = triangle_pipeline_layout_;
 
+    // default depthtesting
+    pipeline_builder.depth_stencil =
+        vk::BuildPipelineDepthStencilStateCreateInfo(
+            true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
+
     // finally build the pipeline
     triangle_pipeline_ = pipeline_builder.Build(device_, render_pass_);
 
@@ -394,7 +563,7 @@ void VulkanRHI::RecreateSwapChain() {
     if (extent.width == 0 || extent.height == 0) return;
 
     destruction_queue_swapchain_.Flush();
-    CreateSwapchain(extent);
+    CreateSwapchain();
     CreateFrameBuffers();
 }
 
@@ -429,10 +598,17 @@ void VulkanRHI::Render() {
     cmdBeginInfo.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VK_CHECK(vkBeginCommandBuffer(main_command_buffer_, &cmdBeginInfo));
 
-    //make a clear-color from frame number. This will flash with a 120*pi frame period.
+    std::vector<VkClearValue> clear_values{};
+    // make a clear-color from frame number. This will flash with a 120*pi frame period.
     VkClearValue clearValue{};
     float        flash = std::abs(std::sin(frame_number_ / 120.f));
     clearValue.color   = {{flash, flash, flash, 1.0f}};
+    clear_values.emplace_back(clearValue);
+
+    // clear depth at 1
+    VkClearValue depthClear{};
+    depthClear.depthStencil.depth = 1.f;
+    clear_values.emplace_back(depthClear);
 
     // start the main renderpass.
     // We will use the clear color from above, 
@@ -445,8 +621,8 @@ void VulkanRHI::Render() {
     rpInfo.renderArea.offset.y = 0;
     rpInfo.renderArea.extent   = extent_;
     rpInfo.framebuffer         = frame_buffers_[swapchainImageIndex];
-    rpInfo.clearValueCount     = 1;
-    rpInfo.pClearValues        = &clearValue;
+    rpInfo.clearValueCount     = (uint32_t)clear_values.size();
+    rpInfo.pClearValues        = clear_values.data();
     vkCmdBeginRenderPass(main_command_buffer_, &rpInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
@@ -633,18 +809,22 @@ void VulkanRHI::ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func) {
 }
 
 void VulkanRHI::LoadMeshes() {
-    // make the array 3 vertices long
-    triangle_mesh_.vertices.resize(3);
+    //// make the array 3 vertices long
+    //triangle_mesh_.vertices.resize(3);
 
-    // vertex positions
-    triangle_mesh_.vertices[0].position = {1.f, 1.f, 0.0f};
-    triangle_mesh_.vertices[1].position = {-1.f, 1.f, 0.0f};
-    triangle_mesh_.vertices[2].position = {0.f, -1.f, 0.0f};
+    //// vertex positions
+    //triangle_mesh_.vertices[0].position = {1.f, 1.f, 0.0f};
+    //triangle_mesh_.vertices[1].position = {-1.f, 1.f, 0.0f};
+    //triangle_mesh_.vertices[2].position = {0.f, -1.f, 0.0f};
 
-    // vertex colors, all green
-    triangle_mesh_.vertices[0].color = {0.f, 1.f, 0.0f};  //pure green
-    triangle_mesh_.vertices[1].color = {0.f, 1.f, 0.0f};  //pure green
-    triangle_mesh_.vertices[2].color = {0.f, 1.f, 0.0f};  //pure green
+    //// vertex colors, all green
+    //triangle_mesh_.vertices[0].color = {0.f, 1.f, 0.0f};  //pure green
+    //triangle_mesh_.vertices[1].color = {0.f, 1.f, 0.0f};  //pure green
+    //triangle_mesh_.vertices[2].color = {0.f, 1.f, 0.0f};  //pure green
+
+    if (!LoadMeshFromObjFile(triangle_mesh_ , "models/monkey_smooth.obj")) {
+        LOG_ERROR("Loading .obj file failed");
+    }
 
     UploadMesh(triangle_mesh_);
 }

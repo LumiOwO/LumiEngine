@@ -54,6 +54,6 @@ target_link_libraries( ${LUMI_ENGINE_TARGET}
     stb_image
     spdlog
     nlohmann
-    # tinyobjloader 
+    tiny_obj_loader 
     )
     

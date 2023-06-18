@@ -188,6 +188,56 @@ inline VkSubmitInfo BuildSubmitInfo(VkCommandBuffer* p_cmd) {
     return info;
 }
 
+inline VkImageCreateInfo BuildImageCreateInfo(VkFormat          format,
+                                              VkImageUsageFlags usageFlags,
+                                              VkExtent3D        extent) {
+    VkImageCreateInfo info{};
+    info.sType       = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    info.pNext       = nullptr;
+    info.imageType   = VK_IMAGE_TYPE_2D;
+    info.format      = format;
+    info.extent      = extent;
+    info.mipLevels   = 1;
+    info.arrayLayers = 1;
+    info.samples     = VK_SAMPLE_COUNT_1_BIT;
+    info.tiling      = VK_IMAGE_TILING_OPTIMAL;
+    info.usage       = usageFlags;
+    return info;
+}
+
+inline VkImageViewCreateInfo BuildImageViewCreateInfo(
+    VkFormat format, VkImage image, VkImageAspectFlags aspectFlags) {
+
+    VkImageViewCreateInfo info{};
+    info.sType    = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    info.pNext    = nullptr;
+    info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    info.image    = image;
+    info.format   = format;
+    info.subresourceRange.baseMipLevel   = 0;
+    info.subresourceRange.levelCount     = 1;
+    info.subresourceRange.baseArrayLayer = 0;
+    info.subresourceRange.layerCount     = 1;
+    info.subresourceRange.aspectMask     = aspectFlags;
+    return info;
+}
+
+inline VkPipelineDepthStencilStateCreateInfo
+BuildPipelineDepthStencilStateCreateInfo(bool bDepthTest, bool bDepthWrite,
+                                         VkCompareOp compareOp) {
+    VkPipelineDepthStencilStateCreateInfo info{};
+    info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    info.pNext = nullptr;
+    info.depthTestEnable       = bDepthTest ? VK_TRUE : VK_FALSE;
+    info.depthWriteEnable      = bDepthWrite ? VK_TRUE : VK_FALSE;
+    info.depthCompareOp        = bDepthTest ? compareOp : VK_COMPARE_OP_ALWAYS;
+    info.depthBoundsTestEnable = VK_FALSE;
+    info.minDepthBounds        = 0.0f;  // Optional
+    info.maxDepthBounds        = 1.0f;  // Optional
+    info.stencilTestEnable     = VK_FALSE;
+    return info;
+}
+
 struct PipelineBuilder {
     std::vector<VkPipelineShaderStageCreateInfo> shader_stages{};
     VkPipelineVertexInputStateCreateInfo         vertex_input_info{};
@@ -199,6 +249,7 @@ struct PipelineBuilder {
     std::vector<VkDynamicState>                  dynamic_states{};
     VkPipelineMultisampleStateCreateInfo         multisample{};
     VkPipelineLayout                             pipeline_layout{};
+    VkPipelineDepthStencilStateCreateInfo        depth_stencil{};
 
     VkPipeline Build(VkDevice device, VkRenderPass render_pass) {
         // make viewport state from our stored viewport and scissor.
@@ -235,7 +286,7 @@ struct PipelineBuilder {
         // build the actual pipeline
         // we now use all of the info structs we have been writing 
         // into this one to create the pipeline
-        VkGraphicsPipelineCreateInfo pipelineInfo = {};
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
         pipelineInfo.pNext = nullptr;
         pipelineInfo.stageCount          = (uint32_t)shader_stages.size();
@@ -251,6 +302,7 @@ struct PipelineBuilder {
         pipelineInfo.renderPass          = render_pass;
         pipelineInfo.subpass             = 0;
         pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
+        pipelineInfo.pDepthStencilState  = &depth_stencil;
 
         // it's easy to error out on create graphics pipeline, 
         // so we handle it a bit better than the common VK_CHECK case
