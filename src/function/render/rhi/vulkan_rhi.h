@@ -41,12 +41,6 @@ private:
     VkSemaphore               render_semaphore_{};
     VkFence                   render_fence_{};
 
-    VkPipelineLayout triangle_pipeline_layout_{};
-    VkPipelineLayout mesh_pipeline_layout_{};
-    VkPipeline       triangle_pipeline_{};
-    VkPipeline       mesh_pipeline_{};
-    vk::Mesh         triangle_mesh_{};
-
     vk::UploadContext upload_context_{};
 
     int frame_number_ = 0;
@@ -70,10 +64,11 @@ public:
 
     void Finalize();
 
-    void Render();
+    void Render(const std::vector<vk::RenderObject>& renderables);
 
-    bool LoadShaderModule(const char*     filepath,
-                          VkShaderModule* out_shader_module);
+    void UploadMesh(vk::Mesh& vk_mesh);
+
+    vk::Material CreateMaterial(const std::string& name);
 
 private:
     void CreateVulkanInstance();
@@ -82,13 +77,12 @@ private:
     void CreateDefaultRenderPass();
     void CreateFrameBuffers();
     void CreateSyncStructures();
-    void CreatePipelines();
 
     void RecreateSwapChain();
 
-    void BindPipeline();
+    void CmdBindPipeline(VkPipeline pipeline);
 
-    void RenderPass();
+    void RenderPass(const std::vector<vk::RenderObject>& renderables);
     void GUIPass();
 
     VkResult WaitForLastFrame();
@@ -97,9 +91,8 @@ private:
 
     void ImGuiInit();
 
-    void LoadMeshes();
-
-    void UploadMesh(vk::Mesh& vk_mesh);
+    bool LoadShaderModule(const std::string& filepath,
+                          VkShaderModule*    out_shader_module);
 };
 
 }  // namespace lumi

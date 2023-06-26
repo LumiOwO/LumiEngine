@@ -1,4 +1,6 @@
 #include "user_input.h"
+
+#include "window.h"
 #include "function/cvars/cvar_system.h"
 
 namespace lumi {

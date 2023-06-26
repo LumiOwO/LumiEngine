@@ -93,7 +93,9 @@ void ImGuiShowCVarsDesc(CVarDesc* desc) {
     } else if (desc->type == CVarType::kVec3f) {
         if (desc->flags & CVarFlags::kIsColor) {
             ImGui::ColorPicker3(
-                "", (float*)cvar_system.GetPtr<Vec3fType>(desc->index_));
+                "", (float*)cvar_system.GetPtr<Vec3fType>(desc->index_),
+                ImGuiColorEditFlags_DefaultOptions_ |
+                    ImGuiColorEditFlags_NoSidePreview);
         } else {
             ImGui::DragFloat3(
                 "", (float*)cvar_system.GetPtr<Vec3fType>(desc->index_),
@@ -102,7 +104,9 @@ void ImGuiShowCVarsDesc(CVarDesc* desc) {
     } else if (desc->type == CVarType::kVec4f) {
         if (desc->flags & CVarFlags::kIsColor) {
             ImGui::ColorPicker4(
-                "", (float*)cvar_system.GetPtr<Vec4fType>(desc->index_));
+                "", (float*)cvar_system.GetPtr<Vec4fType>(desc->index_),
+                ImGuiColorEditFlags_DefaultOptions_ |
+                    ImGuiColorEditFlags_NoSidePreview);
         } else {
             ImGui::DragFloat4(
                 "", (float*)cvar_system.GetPtr<Vec4fType>(desc->index_),
@@ -185,12 +189,13 @@ void ImGuiRender() {
     }
     ImGui::PopItemWidth();
 
-    if (ImGui::Checkbox("Show Advanced", &ctx.show_advanced)) {
-        UpdateCachedCVars();
-    }
     if (ImGui::Checkbox("Show Read Only", &ctx.show_readonly)) {
         UpdateCachedCVars();
     }
+    if (ImGui::Checkbox("Show Advanced", &ctx.show_advanced)) {
+        UpdateCachedCVars();
+    }
+    
     ImGui::Spacing();
     ImGui::Separator();
 

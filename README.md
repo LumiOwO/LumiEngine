@@ -11,7 +11,7 @@ A simple Vulkan renderer.
 - [ ] vsync
 
 ## Prerequisites
-- Visual Studio >= 2019
+- Visual Studio >= 2022
 - CMake >= 3.20
 - Vulkan SDK >= 1.3.250.0
 
@@ -30,3 +30,7 @@ Then open the Visual Studio solution in the build directory and build it manuall
 
 ## References
 - [Vulkan Guide](https://vkguide.dev/)
+
+## Todos
+
+- [ ] Index buffer

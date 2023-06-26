@@ -10,26 +10,14 @@ void Engine::Init() {
     window_ = std::make_shared<Window>();
     window_->Init();
 
-    // Init RHI
-    rhi_ = std::make_shared<VulkanRHI>();
-
-    rhi_->CreateSurface = [=](VkInstance instance, VkSurfaceKHR* p_surface) {
-        return window_->CreateSurface(instance, p_surface);
-    };
-    rhi_->GetWindowExtent = [=]() {
-        int width, height;
-        window_->GetWindowSize(width, height);
-        return VkExtent2D{(uint32_t)width, (uint32_t)height};
-    };
-    rhi_->ImGuiWindowInit     = [=]() { window_->ImGuiWindowInit(); };
-    rhi_->ImGuiWindowShutdown = [=]() { window_->ImGuiWindowShutdown(); };
-    rhi_->ImGuiWindowNewFrame = [=]() { window_->ImGuiWindowNewFrame(); };
-
-    rhi_->Init();
+    // Init render system
+    render_system_ = std::make_shared<RenderSystem>(window_);
+    render_system_->Init();
 
     // Init user input
     user_input_ = std::make_shared<UserInput>();
     user_input_->Init(window_);
+
 }
 
 void Engine::Run() {
@@ -62,12 +50,12 @@ void Engine::Tick(float dt) {
 void Engine::TickLogic(float dt) {}
 
 void Engine::TickRender() {
-    rhi_->Render();
+    render_system_->Tick();
 }
 
 void Engine::Finalize() {
-    rhi_->Finalize();
-    rhi_ = nullptr;
+    render_system_->Finalize();
+    render_system_ = nullptr;
 
     window_->Finalize();
     window_ = nullptr;

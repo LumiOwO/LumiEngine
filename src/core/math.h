@@ -1,54 +1,137 @@
 #pragma once
 
+#ifdef _WIN32
+#include <codeanalysis/warnings.h>
+#pragma warning(push, 0)
+#pragma warning(disable : ALL_CODE_ANALYSIS_WARNINGS)
+#endif
+
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
 #include "glm/gtx/quaternion.hpp"
+
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 #include "core/log.h"
 #include "core/json.h"
 
 namespace lumi {
 
-using Vec1f = glm::vec1;
-using Vec2f = glm::vec2;
-using Vec3f = glm::vec3;
-using Vec4f = glm::vec4;
+struct Vec2f : public glm::vec2 {
+    using glm::vec2::vec2;
 
-using Quaternion = glm::quat;
+    static const Vec2f kZero;
+    static const Vec2f kUnitX;
+    static const Vec2f kUnitY;
+    static const Vec2f kNegativeUnitX;
+    static const Vec2f kNegativeUnitY;
+    static const Vec2f kUnitScale;
+};
 
-using Mat2x2f = glm::mat2x2;
-using Mat2x3f = glm::mat2x3;
-using Mat2x4f = glm::mat2x4;
-using Mat3x2f = glm::mat3x2;
-using Mat3x3f = glm::mat3x3;
-using Mat3x4f = glm::mat3x4;
-using Mat4x2f = glm::mat4x2;
-using Mat4x3f = glm::mat4x3;
-using Mat4x4f = glm::mat4x4;
+inline constexpr Vec2f Vec2f::kZero          = Vec2f(0, 0);
+inline constexpr Vec2f Vec2f::kUnitX         = Vec2f(1, 0);
+inline constexpr Vec2f Vec2f::kUnitY         = Vec2f(0, 1);
+inline constexpr Vec2f Vec2f::kNegativeUnitX = Vec2f(-1, 0);
+inline constexpr Vec2f Vec2f::kNegativeUnitY = Vec2f(0, -1);
+inline constexpr Vec2f Vec2f::kUnitScale     = Vec2f(1, 1);
 
-constexpr float kPosInf = std::numeric_limits<float>::infinity();
-constexpr float kNegInf = -std::numeric_limits<float>::infinity();
-constexpr float kInf    = kPosInf;
-constexpr float kEps    = FLT_EPSILON;
+struct Vec3f : public glm::vec3 {
+    using glm::vec3::vec3;
 
-constexpr float kPi        = 3.14159265358979323846264338327950288f;
-constexpr float kTwoPi     = 2.0f * kPi;
-constexpr float kHalfPi    = 0.5f * kPi;
-constexpr float kOneOverPi = 1.0f / kPi;
+    static const Vec3f kZero;
+    static const Vec3f kUnitX;
+    static const Vec3f kUnitY;
+    static const Vec3f kUnitZ;
+    static const Vec3f kNegativeUnitX;
+    static const Vec3f kNegativeUnitY;
+    static const Vec3f kNegativeUnitZ;
+    static const Vec3f kUnitScale;
+};
 
-constexpr float kDeg2Rad = kPi / 180.0f;
-constexpr float kRad2Deg = 180.0f / kPi;
+inline constexpr Vec3f Vec3f::kZero          = Vec3f(0, 0, 0);
+inline constexpr Vec3f Vec3f::kUnitX         = Vec3f(1, 0, 0);
+inline constexpr Vec3f Vec3f::kUnitY         = Vec3f(0, 1, 0);
+inline constexpr Vec3f Vec3f::kUnitZ         = Vec3f(0, 0, 1);
+inline constexpr Vec3f Vec3f::kNegativeUnitX = Vec3f(-1, 0, 0);
+inline constexpr Vec3f Vec3f::kNegativeUnitY = Vec3f(0, -1, 0);
+inline constexpr Vec3f Vec3f::kNegativeUnitZ = Vec3f(0, 0, -1);
+inline constexpr Vec3f Vec3f::kUnitScale     = Vec3f(1, 1, 1);
+
+struct Vec4f : public glm::vec4 {
+    using glm::vec4::vec4;
+
+    static const Vec4f kZero;
+    static const Vec4f kUnitX;
+    static const Vec4f kUnitY;
+    static const Vec4f kUnitZ;
+    static const Vec4f kUnitW;
+    static const Vec4f kNegativeUnitX;
+    static const Vec4f kNegativeUnitY;
+    static const Vec4f kNegativeUnitZ;
+    static const Vec4f kNegativeUnitW;
+    static const Vec4f kUnitScale;
+};
+
+inline constexpr Vec4f Vec4f::kZero          = Vec4f(0, 0, 0, 0);
+inline constexpr Vec4f Vec4f::kUnitX         = Vec4f(1, 0, 0, 0);
+inline constexpr Vec4f Vec4f::kUnitY         = Vec4f(0, 1, 0, 0);
+inline constexpr Vec4f Vec4f::kUnitZ         = Vec4f(0, 0, 1, 0);
+inline constexpr Vec4f Vec4f::kUnitW         = Vec4f(0, 0, 0, 1);
+inline constexpr Vec4f Vec4f::kNegativeUnitX = Vec4f(-1, 0, 0, 0);
+inline constexpr Vec4f Vec4f::kNegativeUnitY = Vec4f(0, -1, 0, 0);
+inline constexpr Vec4f Vec4f::kNegativeUnitZ = Vec4f(0, 0, -1, 0);
+inline constexpr Vec4f Vec4f::kNegativeUnitW = Vec4f(0, 0, 0, -1);
+inline constexpr Vec4f Vec4f::kUnitScale     = Vec4f(1, 1, 1, 1);
+
+struct Quaternion : public glm::quat {
+    using glm::quat::quat;
+
+    static const Quaternion kZero;
+    static const Quaternion kIdentity;
+};
+
+inline constexpr Quaternion Quaternion::kZero     = Quaternion(0, 0, 0, 0);
+inline constexpr Quaternion Quaternion::kIdentity = Quaternion(1, 0, 0, 0);
+
+struct Mat3x3f : public glm::mat3x3 {
+    using glm::mat3x3::mat3x3;
+
+    static const Mat3x3f kZero;
+    static const Mat3x3f kIdentity;
+};
+
+inline constexpr Mat3x3f Mat3x3f::kZero     = Mat3x3f(0.0f);
+inline constexpr Mat3x3f Mat3x3f::kIdentity = Mat3x3f(1.0f);
+
+struct Mat4x4f : public glm::mat4x4 {
+    using glm::mat4x4::mat4x4;
+
+    static const Mat4x4f kZero;
+    static const Mat4x4f kIdentity;
+};
+
+inline constexpr Mat4x4f Mat4x4f::kZero     = Mat4x4f(0.0f);
+inline constexpr Mat4x4f Mat4x4f::kIdentity = Mat4x4f(1.0f);
+
+
+inline constexpr float kPosInf    = std::numeric_limits<float>::infinity();
+inline constexpr float kNegInf    = -std::numeric_limits<float>::infinity();
+inline constexpr float kInf       = kPosInf;
+inline constexpr float kEps       = FLT_EPSILON;
+inline constexpr float kPi        = 3.14159265358979323846264338327950288f;
+inline constexpr float kTwoPi     = 2.0f * kPi;
+inline constexpr float kHalfPi    = 0.5f * kPi;
+inline constexpr float kOneOverPi = 1.0f / kPi;
+inline constexpr float kDeg2Rad   = kPi / 180.0f;
+inline constexpr float kRad2Deg   = 180.0f / kPi;
 
 }  // namespace lumi
 
 
 // formatter for spdlog
-
-inline std::ostream& operator<<(std::ostream& os, const lumi::Vec1f& v) {
-    return os << "Vec1f( "  //
-              << v.x        //
-              << ")";
-}
+namespace std {
 
 inline std::ostream& operator<<(std::ostream& os, const lumi::Vec2f& v) {
     return os << "Vec2f( "           //
@@ -104,16 +187,10 @@ inline std::ostream& operator<<(std::ostream& os, const lumi::Mat4x4f& m) {
     // clang-format on
 }
 
+}  // namespace std
+
 // Json converter
 namespace glm {
-
-inline void to_json(lumi::Json& j, const lumi::Vec1f& v) {
-    j = lumi::Json::array({v.x});
-}
-
-inline void from_json(const lumi::Json& j, lumi::Vec1f& v) {
-    v.x = j[0];  //
-}
 
 inline void to_json(lumi::Json& j, const lumi::Vec2f& v) {
     j = lumi::Json::array({v.x, v.y});

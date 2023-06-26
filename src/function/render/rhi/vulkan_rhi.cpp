@@ -1,92 +1,20 @@
-#include "rhi.h"
+#include "vulkan_rhi.h"
 #include "function/cvars/cvar_system.h"
+
+#ifdef _WIN32
+#include <codeanalysis/warnings.h>
+#pragma warning(push, 0)
+#pragma warning(disable : ALL_CODE_ANALYSIS_WARNINGS)
+#endif
 
 #define VMA_IMPLEMENTATION
 #include "vma/vk_mem_alloc.h"
 
-#define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader/tiny_obj_loader.h"
+#ifdef _WIN32
+#pragma warning(pop)
+#endif
 
 namespace lumi {
-
-bool LoadMeshFromObjFile(vk::Mesh& mesh, const fs::path& filepath) {
-    auto absolute_path =
-        filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
-    auto in = std::ifstream(absolute_path);
-
-    // attrib will contain the vertex arrays of the file
-    tinyobj::attrib_t attrib;
-    // shapes contains the info for each separate object in the file
-    std::vector<tinyobj::shape_t> shapes;
-    // materials contains the information about the material of each shape, 
-    // but we won't use it.
-    std::vector<tinyobj::material_t> materials;
-
-    //error and warning output from the load function
-    std::string warn;
-    std::string err;
-
-    // load the OBJ file
-    tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-                     absolute_path.string().c_str(),
-                     absolute_path.parent_path().string().c_str());
-    // make sure to output the warnings to the console, 
-    // in case there are issues with the file
-    if (!warn.empty()) {
-        LOG_WARNING(warn.c_str());
-    }
-    // if we have any error, print it to the console, and break the mesh loading.
-    // This happens if the file can't be found or is malformed
-    if (!err.empty()) {
-        LOG_ERROR(err.c_str());
-        return false;
-    }
-
-    // TODO: load shapes to index buffer
-    // Loop over shapes
-    for (size_t s = 0; s < shapes.size(); s++) {
-        // Loop over faces(polygon)
-        size_t index_offset = 0;
-        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-            // hardcode loading to triangles
-            int fv = 3;
-
-            // Loop over vertices in the face.
-            for (size_t v = 0; v < fv; v++) {
-                // access to vertex
-                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-
-                // vertex position
-                tinyobj::real_t vx = attrib.vertices[3LL * idx.vertex_index + 0];
-                tinyobj::real_t vy = attrib.vertices[3LL * idx.vertex_index + 1];
-                tinyobj::real_t vz = attrib.vertices[3LL * idx.vertex_index + 2];
-                // vertex normal
-                tinyobj::real_t nx = attrib.normals[3LL * idx.normal_index + 0];
-                tinyobj::real_t ny = attrib.normals[3LL * idx.normal_index + 1];
-                tinyobj::real_t nz = attrib.normals[3LL * idx.normal_index + 2];
-
-                // copy it into our vertex
-                vk::Vertex new_vert;
-                new_vert.position.x = vx;
-                new_vert.position.y = vy;
-                new_vert.position.z = vz;
-
-                new_vert.normal.x = nx;
-                new_vert.normal.y = ny;
-                new_vert.normal.z = nz;
-
-                // we are setting the vertex color as the vertex normal. 
-                // This is just for display purposes
-                new_vert.color = new_vert.normal;
-
-                mesh.vertices.emplace_back(new_vert);
-            }
-            index_offset += fv;
-        }
-    }
-
-    return true;
-}
 
 void VulkanRHI::Init() {
     CreateVulkanInstance();
@@ -95,18 +23,15 @@ void VulkanRHI::Init() {
     CreateDefaultRenderPass();
     CreateFrameBuffers();
     CreateSyncStructures();
-    CreatePipelines();
 
     ImGuiInit();
-
-    LoadMeshes();
 }
 
 void VulkanRHI::CreateVulkanInstance() {
     vkb::InstanceBuilder builder;
 
     // make the Vulkan instance, with basic debug features
-    auto vkb_inst = builder.set_app_name(LUMI_ENGINE_NAME)
+    auto&& vkb_inst = builder.set_app_name(LUMI_ENGINE_NAME)
                         .require_api_version(1, 1, 0)
 #ifdef LUMI_ENABLE_DEBUG_LOG
                         .request_validation_layers(true)
@@ -417,70 +342,43 @@ void VulkanRHI::CreateSyncStructures() {
     });
 }
 
-void VulkanRHI::CreatePipelines() {
-    VkShaderModule triangleFragShader;
-    if (!LoadShaderModule(LUMI_SHADERS_DIR "/triangle.frag.spv",
-                          &triangleFragShader)) {
-        LOG_ERROR("Error when building the triangle fragment shader module");
-    } else {
-        LOG_INFO("Triangle fragment shader successfully loaded");
-    }
+vk::Material VulkanRHI::CreateMaterial(const std::string& name) {
+    VkShaderModule vertex_shader{};
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/" + name + ".vert.spv",
+                          &vertex_shader)) {
+        LOG_ERROR("Error when building \"{}\" vertex shader module", name);
+    } 
 
-    VkShaderModule triangleVertexShader;
-    if (!LoadShaderModule(LUMI_SHADERS_DIR "/triangle.vert.spv",
-                          &triangleVertexShader)) {
-        LOG_ERROR("Error when building the triangle vertex shader module");
-
-    } else {
-        LOG_INFO("Triangle vertex shader successfully loaded");
-    }
-
-    VkShaderModule meshTriangleFragShader;
-    if (!LoadShaderModule(LUMI_SHADERS_DIR "/meshtriangle.frag.spv",
-                          &meshTriangleFragShader)) {
-        LOG_ERROR("Error when building the triangle fragment shader module");
-    } else {
-        LOG_INFO("Mesh Triangle fragment shader successfully loaded");
-    }
-
-    VkShaderModule meshTriangleVertexShader;
-    if (!LoadShaderModule(LUMI_SHADERS_DIR "/meshtriangle.vert.spv",
-                          &meshTriangleVertexShader)) {
-        LOG_ERROR("Error when building the triangle vertex shader module");
-
-    } else {
-        LOG_INFO("Mesh Triangle vertex shader successfully loaded");
+    VkShaderModule fragment_shader{};
+    if (!LoadShaderModule(LUMI_SHADERS_DIR "/" + name + ".frag.spv",
+                          &fragment_shader)) {
+        LOG_ERROR("Error when building \"{}\" fragment shader module", name);
     }
 
     // build the pipeline layout that controls the inputs/outputs of the shader
-    // we are not using descriptor sets or other systems yet, 
-    // so no need to use anything other than empty default
-    auto pipeline_layout_info = vk::BuildPipelineLayoutCreateInfo();
-    VK_CHECK(vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr,
-                                    &triangle_pipeline_layout_));
-
-    auto mesh_pipeline_layout_info = vk::BuildPipelineLayoutCreateInfo();
+    VkPipelineLayout pipeline_layout{};
+    auto             pipeline_layout_info = vk::BuildPipelineLayoutCreateInfo();
     // setup push constants VkPushConstantRange push_constant;
-    VkPushConstantRange push_constant;
-    push_constant.offset = 0;
-    push_constant.size = sizeof(vk::MeshPushConstants);
+    VkPushConstantRange push_constant{};
+    push_constant.offset     = 0;
+    push_constant.size       = sizeof(vk::MeshPushConstants);
     push_constant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
-    mesh_pipeline_layout_info.pPushConstantRanges    = &push_constant;
-    mesh_pipeline_layout_info.pushConstantRangeCount = 1;
-    VK_CHECK(vkCreatePipelineLayout(device_, &mesh_pipeline_layout_info,
-                                    nullptr, &mesh_pipeline_layout_));
-    
+    pipeline_layout_info.pPushConstantRanges    = &push_constant;
+    pipeline_layout_info.pushConstantRangeCount = 1;
+    VK_CHECK(vkCreatePipelineLayout(device_, &pipeline_layout_info, nullptr,
+                                    &pipeline_layout));
+
     // build the stage-create-info for both vertex and fragment stages.
     // This lets the pipeline know the shader modules per stage
     vk::PipelineBuilder pipeline_builder{};
 
     pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,
-                                               triangleVertexShader));
+                                               vertex_shader));
     pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT,
-                                               triangleFragShader));
+                                               fragment_shader));
     // vertex input controls how to read vertices from vertex buffers.
     // We aren't using it yet
     pipeline_builder.vertex_input_info = vk::BuildVertexInputStateCreateInfo();
@@ -489,12 +387,12 @@ void VulkanRHI::CreatePipelines() {
     // we are just going to draw triangle list
     pipeline_builder.input_assembly =
         vk::BuildInputAssemblyCreateInfo(VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
-    
+
     // no need to init viewport & scissor
     // we use dynamic viewport
     pipeline_builder.dynamic_states.emplace_back(VK_DYNAMIC_STATE_VIEWPORT);
     pipeline_builder.dynamic_states.emplace_back(VK_DYNAMIC_STATE_SCISSOR);
-    
+
     // configure the rasterizer to draw filled triangles
     pipeline_builder.rasterizer =
         vk::BuildRasterizationStateCreateInfo(VK_POLYGON_MODE_FILL);
@@ -503,25 +401,12 @@ void VulkanRHI::CreatePipelines() {
     // a single blend attachment with no blending and writing to RGBA
     pipeline_builder.color_blend_attachment =
         vk::BuildColorBlendAttachmentState();
-    // use the triangle layout we created
-    pipeline_builder.pipeline_layout = triangle_pipeline_layout_;
 
     // default depthtesting
     pipeline_builder.depth_stencil =
         vk::BuildPipelineDepthStencilStateCreateInfo(
             true, true, VK_COMPARE_OP_LESS_OR_EQUAL);
 
-    // finally build the pipeline
-    triangle_pipeline_ = pipeline_builder.Build(device_, render_pass_);
-
-    // build the mesh triangle pipeline
-    pipeline_builder.shader_stages.clear();
-    pipeline_builder.shader_stages.emplace_back(
-        vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,
-                                               meshTriangleVertexShader));
-    pipeline_builder.shader_stages.emplace_back(
-        vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT,
-                                               meshTriangleFragShader));
     vk::VertexInputDescription vertexDescription =
         vk::GetVertexInputDescription();
     pipeline_builder.vertex_input_info.pVertexAttributeDescriptions =
@@ -532,21 +417,23 @@ void VulkanRHI::CreatePipelines() {
         vertexDescription.bindings.data();
     pipeline_builder.vertex_input_info.vertexBindingDescriptionCount =
         (uint32_t)vertexDescription.bindings.size();
-    pipeline_builder.pipeline_layout = mesh_pipeline_layout_;
-    mesh_pipeline_ = pipeline_builder.Build(device_, render_pass_);
+    pipeline_builder.pipeline_layout = pipeline_layout;
 
-    //destroy all shader modules, outside of the queue
-    vkDestroyShaderModule(device_, triangleFragShader, nullptr);
-    vkDestroyShaderModule(device_, triangleVertexShader, nullptr);
-    vkDestroyShaderModule(device_, meshTriangleFragShader, nullptr);
-    vkDestroyShaderModule(device_, meshTriangleVertexShader, nullptr);
+    VkPipeline pipeline = pipeline_builder.Build(device_, render_pass_);
+
+    // destroy all shader modules, outside of the queue
+    vkDestroyShaderModule(device_, vertex_shader, nullptr);
+    vkDestroyShaderModule(device_, fragment_shader, nullptr);
 
     destruction_queue_default_.Push([=]() {
-        vkDestroyPipeline(device_, triangle_pipeline_, nullptr);
-        vkDestroyPipeline(device_, mesh_pipeline_, nullptr);
-        vkDestroyPipelineLayout(device_, triangle_pipeline_layout_, nullptr);
-        vkDestroyPipelineLayout(device_, mesh_pipeline_layout_, nullptr);
+        vkDestroyPipeline(device_, pipeline, nullptr);
+        vkDestroyPipelineLayout(device_, pipeline_layout, nullptr);
     });
+
+    vk::Material mat{};
+    mat.pipeline       = pipeline;
+    mat.pipelineLayout = pipeline_layout;
+    return mat;
 }
 
 void VulkanRHI::Finalize() {
@@ -567,7 +454,7 @@ void VulkanRHI::RecreateSwapChain() {
     CreateFrameBuffers();
 }
 
-void VulkanRHI::Render() {
+void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
     // wait until the GPU has finished rendering the last frame.
     VK_CHECK(WaitForLastFrame());
 
@@ -626,9 +513,7 @@ void VulkanRHI::Render() {
     vkCmdBeginRenderPass(main_command_buffer_, &rpInfo,
                          VK_SUBPASS_CONTENTS_INLINE);
 
-    BindPipeline();
-    
-    RenderPass();
+    RenderPass(renderables);
 
     GUIPass();
 
@@ -683,15 +568,9 @@ void VulkanRHI::Render() {
     frame_number_++;
 }
 
-void VulkanRHI::BindPipeline() {
-    if (cvars::GetBool("colored").value()) {
-        vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          triangle_pipeline_);
-    } else {
-        vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          mesh_pipeline_);
-    }
-    
+void VulkanRHI::CmdBindPipeline(VkPipeline pipeline) {
+    vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      pipeline);
 
     // set viewport & scissor when swapchain recreated
     VkViewport viewport{};
@@ -709,44 +588,57 @@ void VulkanRHI::BindPipeline() {
     vkCmdSetScissor(main_command_buffer_, 0, 1, &scissor);
 }
 
-void VulkanRHI::RenderPass() { 
-    if (cvars::GetBool("colored").value()) {
-        vkCmdDraw(main_command_buffer_, 3, 1, 0, 0); 
-    } else {
-        // bind the mesh vertex buffer with offset 0
-        VkDeviceSize offset = 0;
-        vkCmdBindVertexBuffers(main_command_buffer_, 0, 1,
-                               &triangle_mesh_.vertex_buffer.buffer, &offset);
+void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) { 
+    Vec3f camPos = {0.f, -6.f, -10.f};
 
-        // make a model view matrix for rendering the object camera position
-        Vec3f camPos = {0.f, 0.f, -2.f};
+    Mat4x4f view = glm::translate(Mat4x4f(1.f), camPos);
+    // camera projection
+    Mat4x4f projection =
+        glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+    projection[1][1] *= -1;
 
-        Mat4x4f view = glm::translate(Mat4x4f(1.f), camPos);
-        // camera projection
-        Mat4x4f projection =
-            glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-        projection[1][1] *= -1;
-        // model rotation
-        Mat4x4f model = glm::rotate(
-            Mat4x4f{1.0f}, glm::radians(frame_number_ * 0.4f), Vec3f(0, 1, 0));
-        // calculate final mesh matrix
+    vk::Mesh*     lastMesh     = nullptr;
+    vk::Material* lastMaterial = nullptr;
+    for (auto& object : renderables) {
+        // only bind the pipeline if it doesn't match with the already bound one
+        if (object.material != lastMaterial) {
+            CmdBindPipeline(object.material->pipeline);
+            lastMaterial = object.material;
+        }
+
+        Mat4x4f model = glm::translate(Mat4x4f::kIdentity, object.position) *
+                        glm::toMat4(object.rotation) *
+                        glm::scale(Mat4x4f::kIdentity, object.scale);
+        // final render matrix, that we are calculating on the cpu
         Mat4x4f mvp = projection * view * model;
 
         vk::MeshPushConstants constants{};
-        constants.mvp = mvp;
+        constants.mvp   = mvp;
         constants.color = Vec4f(cvars::GetVec3f("color").value(), 1.0f);
 
-        // upload the matrix to the GPU via push constants
-        vkCmdPushConstants(main_command_buffer_, mesh_pipeline_layout_,
+        // upload the mesh to the GPU via push constants
+        vkCmdPushConstants(main_command_buffer_,
+                           object.material->pipelineLayout,
                            VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(vk::MeshPushConstants), &constants);
-        vkCmdDraw(main_command_buffer_,
-                  (uint32_t)triangle_mesh_.vertices.size(), 1, 0, 0);
+
+        // only bind the mesh if it's a different one from last bind
+        if (object.mesh != lastMesh) {
+            // bind the mesh vertex buffer with offset 0
+            VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(main_command_buffer_, 0, 1,
+                                   &object.mesh->vertex_buffer.buffer, &offset);
+            lastMesh = object.mesh;
+        }
+        // we can now draw
+        vkCmdDraw(main_command_buffer_, (uint32_t)object.mesh->vertices.size(),
+                  1, 0, 0);
     }
+
 }
 
-bool VulkanRHI::LoadShaderModule(const char*     filepath,
-                                 VkShaderModule* out_shader_module) {
+bool VulkanRHI::LoadShaderModule(const std::string& filepath,
+                                 VkShaderModule*    out_shader_module) {
     auto shader_file =
         std::ifstream(filepath, std::ios::ate | std::ios::binary);
     if (!shader_file.is_open()) {
@@ -771,7 +663,7 @@ bool VulkanRHI::LoadShaderModule(const char*     filepath,
     createInfo.pCode    = (uint32_t*)buffer.data();
 
     //check that the creation goes well.
-    VkShaderModule shaderModule;
+    VkShaderModule shaderModule{};
     if (vkCreateShaderModule(device_, &createInfo, nullptr, &shaderModule) !=
         VK_SUCCESS) {
         return false;
@@ -806,27 +698,6 @@ void VulkanRHI::ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func) {
 
     // reset the command buffers inside the command pool
     vkResetCommandPool(device_, upload_context_.command_pool, 0);
-}
-
-void VulkanRHI::LoadMeshes() {
-    //// make the array 3 vertices long
-    //triangle_mesh_.vertices.resize(3);
-
-    //// vertex positions
-    //triangle_mesh_.vertices[0].position = {1.f, 1.f, 0.0f};
-    //triangle_mesh_.vertices[1].position = {-1.f, 1.f, 0.0f};
-    //triangle_mesh_.vertices[2].position = {0.f, -1.f, 0.0f};
-
-    //// vertex colors, all green
-    //triangle_mesh_.vertices[0].color = {0.f, 1.f, 0.0f};  //pure green
-    //triangle_mesh_.vertices[1].color = {0.f, 1.f, 0.0f};  //pure green
-    //triangle_mesh_.vertices[2].color = {0.f, 1.f, 0.0f};  //pure green
-
-    if (!LoadMeshFromObjFile(triangle_mesh_ , "models/monkey_smooth.obj")) {
-        LOG_ERROR("Loading .obj file failed");
-    }
-
-    UploadMesh(triangle_mesh_);
 }
 
 void VulkanRHI::UploadMesh(vk::Mesh& vk_mesh) {

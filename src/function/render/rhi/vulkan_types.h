@@ -47,6 +47,19 @@ struct MeshPushConstants {
     Mat4x4f mvp{};
 };
 
+struct Material {
+    VkPipeline       pipeline{};
+    VkPipelineLayout pipelineLayout{};
+};
+
+struct RenderObject {
+    Mesh*      mesh     = nullptr;
+    Material*  material = nullptr;
+    Vec3f      position = Vec3f::kZero;
+    Quaternion rotation = Quaternion::kIdentity;
+    Vec3f      scale    = Vec3f::kUnitScale;
+};
+
 // class for destroying vulkan resources
 class DestructionQueue {
 private:

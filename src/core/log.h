@@ -4,8 +4,12 @@
 
 #include "singleton.h"
 
+#ifdef _WIN32
+#include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
-#pragma warning(disable : 6285 6385 26812 26451 26498 26437 26495)
+#pragma warning(disable : ALL_CODE_ANALYSIS_WARNINGS)
+#endif
+
 
 #ifdef LUMI_ENABLE_DEBUG_LOG
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_DEBUG
@@ -13,12 +17,14 @@
 #define SPDLOG_ACTIVE_LEVEL SPDLOG_LEVEL_INFO
 #endif
 
-#include "spdlog/async.h"
-#include "spdlog/fmt/ostr.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
+#include "spdlog/fmt/ostr.h"
 #include "spdlog/spdlog.h"
 
+
+#ifdef _WIN32
 #pragma warning(pop)
+#endif
 
 namespace lumi {
 
@@ -37,8 +43,6 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
             spdlog::level::level_enum::debug,
             FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY);
         const spdlog::sinks_init_list sink_list = {console_sink};
-
-        spdlog::init_thread_pool(8192, 1);
 
         logger = std::make_shared<spdlog::logger>(
             "logger", sink_list.begin(), sink_list.end());

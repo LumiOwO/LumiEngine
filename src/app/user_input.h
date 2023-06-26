@@ -2,9 +2,9 @@
 
 #include <memory>
 
-#include "window.h"
-
 namespace lumi {
+
+class Window;
 
 class UserInput {
 public:
