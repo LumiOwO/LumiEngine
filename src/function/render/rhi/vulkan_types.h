@@ -4,9 +4,9 @@
 #include "vma/vk_mem_alloc.h"
 
 #include "core/math.h"
+#include "core/hash.h"
 
 namespace lumi {
-
 namespace vk {
 
 struct AllocatedBuffer {
@@ -35,11 +35,43 @@ struct Vertex {
     Vec3f position{};
     Vec3f normal{};
     Vec3f color{};
+    Vec2f texcoord{};
+
+    bool operator==(const Vertex& rhs) const {
+        return position == rhs.position && normal == rhs.normal &&
+               color == rhs.color && texcoord == rhs.texcoord;
+    }
 };
 
+}  // namespace vk
+}  // namespace lumi
+
+// hash for Vertex
+namespace std {
+template <>
+struct hash<lumi::vk::Vertex> {
+    std::size_t operator()(const lumi::vk::Vertex& v) const {
+        std::size_t result = 0;
+        lumi::hash_combine<glm::vec3>(result, v.position);
+        lumi::hash_combine<glm::vec3>(result, v.normal);
+        lumi::hash_combine<glm::vec3>(result, v.color);
+        lumi::hash_combine<glm::vec2>(result, v.texcoord);
+        return result;
+    }
+};
+}  // namespace std
+
+namespace lumi {
+namespace vk {
+
 struct Mesh {
-    std::vector<Vertex> vertices{};
-    AllocatedBuffer     vertex_buffer{};
+    using IndexType                           = uint16_t;
+    constexpr static VkIndexType kVkIndexType = VK_INDEX_TYPE_UINT16;
+
+    std::vector<Vertex>    vertices{};
+    std::vector<IndexType> indices{};
+    AllocatedBuffer        vertex_buffer{};
+    AllocatedBuffer        index_buffer{};
 };
 
 struct MeshPushConstants {
@@ -77,6 +109,6 @@ public:
         destructors_.clear();
     }
 };
-}  // namespace vk
 
+}  // namespace vk
 }  // namespace lumi

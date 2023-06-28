@@ -600,6 +600,15 @@ void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) {
     vk::Mesh*     lastMesh     = nullptr;
     vk::Material* lastMaterial = nullptr;
     for (auto& object : renderables) {
+        if (object.mesh == nullptr) {
+            continue;
+        }
+        // TODO: add unknown material (purple)
+        if (object.material == nullptr) {
+            continue;
+        }
+        
+
         // only bind the pipeline if it doesn't match with the already bound one
         if (object.material != lastMaterial) {
             CmdBindPipeline(object.material->pipeline);
@@ -628,11 +637,14 @@ void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) {
             VkDeviceSize offset = 0;
             vkCmdBindVertexBuffers(main_command_buffer_, 0, 1,
                                    &object.mesh->vertex_buffer.buffer, &offset);
+            vkCmdBindIndexBuffer(main_command_buffer_,
+                                 object.mesh->index_buffer.buffer, 0,
+                                 vk::Mesh::kVkIndexType);
             lastMesh = object.mesh;
         }
         // we can now draw
-        vkCmdDraw(main_command_buffer_, (uint32_t)object.mesh->vertices.size(),
-                  1, 0, 0);
+        vkCmdDrawIndexed(main_command_buffer_,
+                         (uint32_t)object.mesh->indices.size(), 1, 0, 0, 0);
     }
 
 }
@@ -702,31 +714,56 @@ void VulkanRHI::ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func) {
 
 void VulkanRHI::UploadMesh(vk::Mesh& vk_mesh) {
     // allocate vertex buffer
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size  = vk_mesh.vertices.size() * sizeof(vk::Vertex);
-    bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    VkBufferCreateInfo vertex_buffer_info{};
+    vertex_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    vertex_buffer_info.size  = vk_mesh.vertices.size() * sizeof(vk::Vertex);
+    vertex_buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 
     // let the VMA library know that this data should be writeable by CPU,
     // but also readable by GPU
-    VmaAllocationCreateInfo vmaAllocInfo{};
-    vmaAllocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-    VK_CHECK(vmaCreateBuffer(allocator_, &bufferInfo, &vmaAllocInfo,
+    VmaAllocationCreateInfo vertex_buffer_alloc_info{};
+    vertex_buffer_alloc_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    VK_CHECK(vmaCreateBuffer(allocator_, &vertex_buffer_info,
+                             &vertex_buffer_alloc_info,
                              &vk_mesh.vertex_buffer.buffer,
                              &vk_mesh.vertex_buffer.allocation, nullptr));
+
+    // allocate index buffer
+    VkBufferCreateInfo index_buffer_info{};
+    index_buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    index_buffer_info.size =
+        vk_mesh.indices.size() * sizeof(vk::Mesh::IndexType);
+    index_buffer_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+
+    // let the VMA library know that this data should be writeable by CPU,
+    // but also readable by GPU
+    VmaAllocationCreateInfo index_buffer_alloc_info{};
+    index_buffer_alloc_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    VK_CHECK(vmaCreateBuffer(allocator_, &index_buffer_info,
+                             &index_buffer_alloc_info,
+                             &vk_mesh.index_buffer.buffer,
+                             &vk_mesh.index_buffer.allocation, nullptr));
 
     // add the destruction of triangle mesh buffer to the deletion queue
     destruction_queue_default_.Push([=]() {
         vmaDestroyBuffer(allocator_, vk_mesh.vertex_buffer.buffer,
                          vk_mesh.vertex_buffer.allocation);
+        vmaDestroyBuffer(allocator_, vk_mesh.index_buffer.buffer,
+                         vk_mesh.index_buffer.allocation);
     });
 
-    // copy vertex data
     void* data;
+    // copy vertex data
     vmaMapMemory(allocator_, vk_mesh.vertex_buffer.allocation, &data);
     memcpy(data, vk_mesh.vertices.data(),
            vk_mesh.vertices.size() * sizeof(vk::Vertex));
     vmaUnmapMemory(allocator_, vk_mesh.vertex_buffer.allocation);
+
+    // copy index data
+    vmaMapMemory(allocator_, vk_mesh.index_buffer.allocation, &data);
+    memcpy(data, vk_mesh.indices.data(),
+           vk_mesh.indices.size() * sizeof(vk::Mesh::IndexType));
+    vmaUnmapMemory(allocator_, vk_mesh.index_buffer.allocation);
 }
 
 }  // namespace lumi

@@ -49,14 +49,15 @@ bool RenderScene::LoadMeshFromObjFile(vk::Mesh&       mesh,
         return false;
     }
 
-    // TODO: load shapes to index buffer
+    std::unordered_map<vk::Vertex, vk::Mesh::IndexType> vertex_hashmap{};
+
     // Loop over shapes
     for (size_t s = 0; s < shapes.size(); s++) {
         // Loop over faces(polygon)
         size_t index_offset = 0;
         for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
             // hardcode loading to triangles
-            int fv = 3;
+            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 
             // Loop over vertices in the face.
             for (size_t v = 0; v < fv; v++) {
@@ -74,9 +75,18 @@ bool RenderScene::LoadMeshFromObjFile(vk::Mesh&       mesh,
                 tinyobj::real_t nx = attrib.normals[3LL * idx.normal_index + 0];
                 tinyobj::real_t ny = attrib.normals[3LL * idx.normal_index + 1];
                 tinyobj::real_t nz = attrib.normals[3LL * idx.normal_index + 2];
+                // vertex texcoord
+                tinyobj::real_t tx =
+                    attrib.texcoords[2LL * idx.texcoord_index + 0];
+                tinyobj::real_t ty =
+                    attrib.texcoords[2LL * idx.texcoord_index + 1];
+                // Optional: vertex colors
+                tinyobj::real_t r = attrib.colors[3LL * idx.vertex_index + 0];
+                tinyobj::real_t g = attrib.colors[3LL * idx.vertex_index + 1];
+                tinyobj::real_t b = attrib.colors[3LL * idx.vertex_index + 2];
 
                 // copy it into our vertex
-                vk::Vertex new_vert;
+                vk::Vertex new_vert{};
                 new_vert.position.x = vx;
                 new_vert.position.y = vy;
                 new_vert.position.z = vz;
@@ -85,11 +95,25 @@ bool RenderScene::LoadMeshFromObjFile(vk::Mesh&       mesh,
                 new_vert.normal.y = ny;
                 new_vert.normal.z = nz;
 
+                new_vert.texcoord.x = tx;
+                new_vert.texcoord.y = 1.0f - ty;
+
                 // we are setting the vertex color as the vertex normal.
                 // This is just for display purposes
+                // TODO: change normal color to shader
                 new_vert.color = new_vert.normal;
+                //new_vert.color.r = r;
+                //new_vert.color.g = g;
+                //new_vert.color.b = b;
 
-                mesh.vertices.emplace_back(new_vert);
+                auto it = vertex_hashmap.find(new_vert);
+                if (it == vertex_hashmap.end()) {
+                    vertex_hashmap[new_vert] =
+                        (vk::Mesh::IndexType)mesh.vertices.size();
+                    mesh.vertices.emplace_back(new_vert);
+                }
+
+                mesh.indices.emplace_back(vertex_hashmap[new_vert]);
             }
             index_offset += fv;
         }
@@ -126,9 +150,11 @@ void RenderScene::LoadScene() {
     triangle_mesh.vertices[1].position = {-1.f, 1.f, 0.5f};
     triangle_mesh.vertices[2].position = {0.f, -1.f, 0.5f};
 
-    triangle_mesh.vertices[0].color = {0.f, 1.f, 0.0f};  //pure green
-    triangle_mesh.vertices[1].color = {0.f, 1.f, 0.0f};  //pure green
-    triangle_mesh.vertices[2].color = {0.f, 1.f, 0.0f};  //pure green
+    triangle_mesh.vertices[0].color = {0.f, 1.f, 0.0f};  // pure green
+    triangle_mesh.vertices[1].color = {0.f, 1.f, 0.0f};  // pure green
+    triangle_mesh.vertices[2].color = {0.f, 1.f, 0.0f};  // pure green
+
+    triangle_mesh.indices = {0, 1, 2};
 
     vk::Mesh monkey_mesh{};
     if (!LoadMeshFromObjFile(monkey_mesh, "models/monkey_smooth.obj")) {
