@@ -17,7 +17,6 @@
 #pragma warning(pop)
 #endif
 
-#include "core/log.h"
 #include "core/json.h"
 
 namespace lumi {
@@ -88,16 +87,6 @@ inline constexpr Vec4f Vec4f::kNegativeUnitZ = Vec4f(0, 0, -1, 0);
 inline constexpr Vec4f Vec4f::kNegativeUnitW = Vec4f(0, 0, 0, -1);
 inline constexpr Vec4f Vec4f::kUnitScale     = Vec4f(1, 1, 1, 1);
 
-struct Quaternion : public glm::quat {
-    using glm::quat::quat;
-
-    static const Quaternion kZero;
-    static const Quaternion kIdentity;
-};
-
-inline constexpr Quaternion Quaternion::kZero     = Quaternion(0, 0, 0, 0);
-inline constexpr Quaternion Quaternion::kIdentity = Quaternion(1, 0, 0, 0);
-
 struct Mat3x3f : public glm::mat3x3 {
     using glm::mat3x3::mat3x3;
 
@@ -113,11 +102,36 @@ struct Mat4x4f : public glm::mat4x4 {
 
     static const Mat4x4f kZero;
     static const Mat4x4f kIdentity;
+
+    static Mat4x4f Scale(const Vec3f& v) { return glm::scale(Mat4x4f(1.f), v); }
+
+    static Mat4x4f Rotation(float angle, const Vec3f& v) {
+        return glm::rotate(Mat4x4f(1.f), angle, v);
+    }
+
+    static Mat4x4f Translation(const Vec3f& v) {
+        return glm::translate(Mat4x4f(1.f), v);
+    }
+
+    static Mat4x4f Perspective(float fovy, float aspect, float near, float far) {
+        return glm::perspective(fovy, aspect, near, far);
+    }
 };
 
 inline constexpr Mat4x4f Mat4x4f::kZero     = Mat4x4f(0.0f);
 inline constexpr Mat4x4f Mat4x4f::kIdentity = Mat4x4f(1.0f);
 
+struct Quaternion : public glm::quat {
+    using glm::quat::quat;
+
+    static const Quaternion kZero;
+    static const Quaternion kIdentity;
+
+    Mat4x4f ToMatrix() const { return glm::toMat4(*this); }
+};
+
+inline constexpr Quaternion Quaternion::kZero     = Quaternion(0, 0, 0, 0);
+inline constexpr Quaternion Quaternion::kIdentity = Quaternion(1, 0, 0, 0);
 
 inline constexpr float kPosInf    = std::numeric_limits<float>::infinity();
 inline constexpr float kNegInf    = -std::numeric_limits<float>::infinity();
@@ -129,6 +143,10 @@ inline constexpr float kHalfPi    = 0.5f * kPi;
 inline constexpr float kOneOverPi = 1.0f / kPi;
 inline constexpr float kDeg2Rad   = kPi / 180.0f;
 inline constexpr float kRad2Deg   = 180.0f / kPi;
+
+inline float ToRadians(float degrees) { return glm::radians(degrees); }
+
+inline float ToDegrees(float radians) { return glm::degrees(radians); }
 
 }  // namespace lumi
 

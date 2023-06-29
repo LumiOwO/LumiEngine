@@ -591,10 +591,10 @@ void VulkanRHI::CmdBindPipeline(VkPipeline pipeline) {
 void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) { 
     Vec3f camPos = {0.f, -6.f, -10.f};
 
-    Mat4x4f view = glm::translate(Mat4x4f(1.f), camPos);
+    Mat4x4f view = Mat4x4f::Translation(camPos);
     // camera projection
     Mat4x4f projection =
-        glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+        Mat4x4f::Perspective(ToRadians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
     projection[1][1] *= -1;
 
     vk::Mesh*     lastMesh     = nullptr;
@@ -615,9 +615,9 @@ void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) {
             lastMaterial = object.material;
         }
 
-        Mat4x4f model = glm::translate(Mat4x4f::kIdentity, object.position) *
-                        glm::toMat4(object.rotation) *
-                        glm::scale(Mat4x4f::kIdentity, object.scale);
+        Mat4x4f model = Mat4x4f::Translation(object.position) *
+                        object.rotation.ToMatrix() *
+                        Mat4x4f::Scale(object.scale);
         // final render matrix, that we are calculating on the cpu
         Mat4x4f mvp = projection * view * model;
 

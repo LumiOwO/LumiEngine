@@ -8,6 +8,10 @@
 #include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
 #pragma warning(disable : ALL_CODE_ANALYSIS_WARNINGS)
+#pragma push_macro("near")
+#pragma push_macro("far")
+#pragma push_macro("NEAR")
+#pragma push_macro("FAR")
 #endif
 
 
@@ -23,6 +27,10 @@
 
 
 #ifdef _WIN32
+#pragma pop_macro("near")
+#pragma pop_macro("far")
+#pragma pop_macro("NEAR")
+#pragma pop_macro("FAR")
 #pragma warning(pop)
 #endif
 

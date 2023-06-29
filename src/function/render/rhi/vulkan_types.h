@@ -1,13 +1,31 @@
 #pragma once
 
-#include "vulkan/vulkan.h"
-#include "vma/vk_mem_alloc.h"
-
 #include "core/math.h"
 #include "core/hash.h"
 
+#include "vulkan/vulkan.h"
+#include "vma/vk_mem_alloc.h"
+
 namespace lumi {
 namespace vk {
+
+// class for destroying vulkan resources
+class DestructionQueue {
+private:
+    std::vector<std::function<void()>> destructors_{};
+
+public:
+    void Push(std::function<void()>&& destructor) {
+        destructors_.emplace_back(destructor);
+    }
+
+    void Flush() {
+        for (auto it = destructors_.rbegin(); it != destructors_.rend(); it++) {
+            (*it)();
+        }
+        destructors_.clear();
+    }
+};
 
 struct AllocatedBuffer {
     VkBuffer      buffer{};
@@ -43,27 +61,6 @@ struct Vertex {
     }
 };
 
-}  // namespace vk
-}  // namespace lumi
-
-// hash for Vertex
-namespace std {
-template <>
-struct hash<lumi::vk::Vertex> {
-    std::size_t operator()(const lumi::vk::Vertex& v) const {
-        std::size_t result = 0;
-        lumi::hash_combine<glm::vec3>(result, v.position);
-        lumi::hash_combine<glm::vec3>(result, v.normal);
-        lumi::hash_combine<glm::vec3>(result, v.color);
-        lumi::hash_combine<glm::vec2>(result, v.texcoord);
-        return result;
-    }
-};
-}  // namespace std
-
-namespace lumi {
-namespace vk {
-
 struct Mesh {
     using IndexType                           = uint16_t;
     constexpr static VkIndexType kVkIndexType = VK_INDEX_TYPE_UINT16;
@@ -92,23 +89,21 @@ struct RenderObject {
     Vec3f      scale    = Vec3f::kUnitScale;
 };
 
-// class for destroying vulkan resources
-class DestructionQueue {
-private:
-    std::vector<std::function<void()>> destructors_{};
-
-public:
-    void Push(std::function<void()>&& destructor) {
-        destructors_.emplace_back(destructor);
-    }
-
-    void Flush() {
-        for (auto it = destructors_.rbegin(); it != destructors_.rend(); it++) {
-            (*it)();
-        }
-        destructors_.clear();
-    }
-};
-
 }  // namespace vk
 }  // namespace lumi
+
+
+// hash for Vertex
+namespace std {
+template <>
+struct hash<lumi::vk::Vertex> {
+    std::size_t operator()(const lumi::vk::Vertex& v) const {
+        std::size_t result = 0;
+        lumi::hash_combine<glm::vec3>(result, v.position);
+        lumi::hash_combine<glm::vec3>(result, v.normal);
+        lumi::hash_combine<glm::vec3>(result, v.color);
+        lumi::hash_combine<glm::vec2>(result, v.texcoord);
+        return result;
+    }
+};
+}  // namespace std
