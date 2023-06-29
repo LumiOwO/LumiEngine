@@ -37,10 +37,18 @@ struct AllocatedImage {
     VmaAllocation allocation{};
 };
 
+struct FrameData {
+    VkCommandPool   command_pool{};
+    VkCommandBuffer main_command_buffer{};
+    VkFence         render_fence{};
+    VkSemaphore     render_semaphore{};
+    VkSemaphore     present_semaphore{};
+};
+
 struct UploadContext {
-    VkFence         upload_fence{};
     VkCommandPool   command_pool{};
     VkCommandBuffer command_buffer{};
+    VkFence         upload_fence{};
 };
 
 struct VertexInputDescription {

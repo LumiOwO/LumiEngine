@@ -30,20 +30,18 @@ private:
 
     VkQueue         graphics_queue_{};         // queue we will submit to
     uint32_t        graphics_queue_family_{};  // family of that queue
-    VkCommandPool   command_pool_{};  // the command pool for our commands
-    VkCommandBuffer main_command_buffer_{};  // the buffer we will record into
+
+    constexpr static uint64_t kTimeout = 1000000000ui64;  // Timeout of 1 second
+    constexpr static int      kFramesInFlight          = 2;
+    vk::FrameData             frames_[kFramesInFlight] = {};
+    int                       frame_idx_               = 0;
 
     VkRenderPass               render_pass_{};
     std::vector<VkFramebuffer> frame_buffers_{};
 
-    constexpr static uint64_t kTimeout = 1000000000ui64;  // Timeout of 1 second
-    VkSemaphore               present_semaphore_{};
-    VkSemaphore               render_semaphore_{};
-    VkFence                   render_fence_{};
-
     vk::UploadContext upload_context_{};
 
-    int frame_number_ = 0;
+    int frame_number_ = 0; // TODO: delete
 
 public:
     using CreateSurfaceFunc =
@@ -80,12 +78,13 @@ private:
 
     void RecreateSwapChain();
 
-    void CmdBindPipeline(VkPipeline pipeline);
+    void CmdBindPipeline(VkCommandBuffer cmd_buffer, VkPipeline pipeline);
 
-    void RenderPass(const std::vector<vk::RenderObject>& renderables);
-    void GUIPass();
+    void RenderPass(VkCommandBuffer                      cmd_buffer,
+                    const std::vector<vk::RenderObject>& renderables);
+    void GUIPass(VkCommandBuffer cmd_buffer);
 
-    VkResult WaitForLastFrame();
+    VkResult WaitForCurrentFrame();
 
     void ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func);
 

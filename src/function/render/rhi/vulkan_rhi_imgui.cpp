@@ -107,7 +107,7 @@ void VulkanRHI::ImGuiInit() {
     });
 }
 
-void VulkanRHI::GUIPass() {
+void VulkanRHI::GUIPass(VkCommandBuffer cmd_buffer) {
     ImGui_ImplVulkan_NewFrame();
     ImGuiWindowNewFrame();
     ImGui::NewFrame();
@@ -134,7 +134,7 @@ void VulkanRHI::GUIPass() {
 #pragma endregion
 
     ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), main_command_buffer_);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd_buffer);
 }
 
 }  // namespace lumi

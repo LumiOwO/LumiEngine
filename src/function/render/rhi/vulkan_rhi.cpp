@@ -179,12 +179,20 @@ void VulkanRHI::CreateCommands() {
     auto commandPoolInfo = vk::BuildCommandPoolCreateInfo(
         graphics_queue_family_,
         VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT);
-    VK_CHECK(vkCreateCommandPool(device_, &commandPoolInfo, nullptr,
-                                 &command_pool_));
-    // allocate the default command buffer that we will use for rendering
-    auto cmdAllocInfo = vk::BuildCommandBufferAllocateInfo(command_pool_, 1);
-    VK_CHECK(vkAllocateCommandBuffers(device_, &cmdAllocInfo,
-                                      &main_command_buffer_));
+
+    for (auto& frame : frames_) {
+        VK_CHECK(vkCreateCommandPool(device_, &commandPoolInfo, nullptr,
+                                     &frame.command_pool));
+        // allocate the default command buffer that we will use for rendering
+        auto cmdAllocInfo =
+            vk::BuildCommandBufferAllocateInfo(frame.command_pool, 1);
+        VK_CHECK(vkAllocateCommandBuffers(device_, &cmdAllocInfo,
+                                          &frame.main_command_buffer));
+
+        destruction_queue_default_.Push([=]() {
+            vkDestroyCommandPool(device_, frame.command_pool, nullptr);
+        });
+    }
 
     // create pool for upload context
     auto uploadCommandPoolInfo =
@@ -199,7 +207,6 @@ void VulkanRHI::CreateCommands() {
 
     destruction_queue_default_.Push([=]() {
         vkDestroyCommandPool(device_, upload_context_.command_pool, nullptr);
-        vkDestroyCommandPool(device_, command_pool_, nullptr);
     });
 }
 
@@ -321,24 +328,31 @@ void VulkanRHI::CreateSyncStructures() {
     // so we can wait on it before using it on a GPU command (for the first frame)
     auto fenceCreateInfo =
         vk::BuildFenceCreateInfo(VK_FENCE_CREATE_SIGNALED_BIT);
-    VK_CHECK(vkCreateFence(device_, &fenceCreateInfo, nullptr, &render_fence_));
+
+    // for the semaphores we don't need any flags
+    auto semaphoreCreateInfo = vk::BuildSemaphoreCreateInfo();
+
+    for (auto& frame : frames_) {
+        VK_CHECK(vkCreateFence(device_, &fenceCreateInfo, nullptr,
+                               &frame.render_fence));
+        VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
+                                   &frame.present_semaphore));
+        VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
+                                   &frame.render_semaphore));
+
+        destruction_queue_default_.Push([=]() {
+            vkDestroyFence(device_, frame.render_fence, nullptr);
+            vkDestroySemaphore(device_, frame.present_semaphore, nullptr);
+            vkDestroySemaphore(device_, frame.render_semaphore, nullptr);
+        });
+    }
+    
 
     auto uploadFenceCreateInfo = vk::BuildFenceCreateInfo();
     VK_CHECK(vkCreateFence(device_, &uploadFenceCreateInfo, nullptr,
                            &upload_context_.upload_fence));
-
-    // for the semaphores we don't need any flags
-    auto semaphoreCreateInfo = vk::BuildSemaphoreCreateInfo();
-    VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
-                               &present_semaphore_));
-    VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
-                               &render_semaphore_));
-
     destruction_queue_default_.Push([=]() {
         vkDestroyFence(device_, upload_context_.upload_fence, nullptr);
-        vkDestroyFence(device_, render_fence_, nullptr);
-        vkDestroySemaphore(device_, present_semaphore_, nullptr);
-        vkDestroySemaphore(device_, render_semaphore_, nullptr);
     });
 }
 
@@ -438,13 +452,15 @@ vk::Material VulkanRHI::CreateMaterial(const std::string& name) {
 
 void VulkanRHI::Finalize() {
     // make sure the GPU has stopped doing its things
-    WaitForLastFrame();
+    for (auto& frame : frames_) {
+        vkWaitForFences(device_, 1, &frame.render_fence, true, kTimeout);
+    }
     destruction_queue_swapchain_.Flush();
     destruction_queue_default_.Flush();
 }
 
 void VulkanRHI::RecreateSwapChain() {
-    WaitForLastFrame();
+    WaitForCurrentFrame();
 
     VkExtent2D extent = GetWindowExtent();
     if (extent.width == 0 || extent.height == 0) return;
@@ -456,13 +472,14 @@ void VulkanRHI::RecreateSwapChain() {
 
 void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
     // wait until the GPU has finished rendering the last frame.
-    VK_CHECK(WaitForLastFrame());
+    VK_CHECK(WaitForCurrentFrame());
+    auto& cur_frame = frames_[frame_idx_];
 
     // request image from the swapchain
     uint32_t swapchainImageIndex;
-    VkResult acquire_swapchain_image_result =
-        vkAcquireNextImageKHR(device_, swapchain_, kTimeout, present_semaphore_,
-                              nullptr, &swapchainImageIndex);
+    VkResult acquire_swapchain_image_result = vkAcquireNextImageKHR(
+        device_, swapchain_, kTimeout, cur_frame.present_semaphore, nullptr,
+        &swapchainImageIndex);
     if (acquire_swapchain_image_result == VK_ERROR_OUT_OF_DATE_KHR) {
         RecreateSwapChain();
         return;
@@ -472,8 +489,9 @@ void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
 
     // now that we are sure that the commands finished executing, 
     // we can safely reset the command buffer to begin recording again.
-    VK_CHECK(vkResetFences(device_, 1, &render_fence_));
-    VK_CHECK(vkResetCommandBuffer(main_command_buffer_, 0));
+    VK_CHECK(vkResetFences(device_, 1, &cur_frame.render_fence));
+    VK_CHECK(vkResetCommandBuffer(cur_frame.main_command_buffer, 0));
+    VkCommandBuffer cmd_buffer = cur_frame.main_command_buffer;
 
     // begin the command buffer recording. 
     // We will use this command buffer exactly once, 
@@ -483,7 +501,7 @@ void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
     cmdBeginInfo.pNext            = nullptr;
     cmdBeginInfo.pInheritanceInfo = nullptr;
     cmdBeginInfo.flags            = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    VK_CHECK(vkBeginCommandBuffer(main_command_buffer_, &cmdBeginInfo));
+    VK_CHECK(vkBeginCommandBuffer(cmd_buffer, &cmdBeginInfo));
 
     std::vector<VkClearValue> clear_values{};
     // make a clear-color from frame number. This will flash with a 120*pi frame period.
@@ -510,15 +528,14 @@ void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
     rpInfo.framebuffer         = frame_buffers_[swapchainImageIndex];
     rpInfo.clearValueCount     = (uint32_t)clear_values.size();
     rpInfo.pClearValues        = clear_values.data();
-    vkCmdBeginRenderPass(main_command_buffer_, &rpInfo,
-                         VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(cmd_buffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    RenderPass(renderables);
+    RenderPass(cmd_buffer, renderables);
 
-    GUIPass();
+    GUIPass(cmd_buffer);
 
-    vkCmdEndRenderPass(main_command_buffer_);
-    VK_CHECK(vkEndCommandBuffer(main_command_buffer_));
+    vkCmdEndRenderPass(cmd_buffer);
+    VK_CHECK(vkEndCommandBuffer(cmd_buffer));
 
 
     // prepare the submission to the queue.
@@ -532,14 +549,15 @@ void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
     submit.pNext                = nullptr;
     submit.pWaitDstStageMask    = &waitStage;
     submit.waitSemaphoreCount   = 1;
-    submit.pWaitSemaphores      = &present_semaphore_;
+    submit.pWaitSemaphores      = &cur_frame.present_semaphore;
     submit.signalSemaphoreCount = 1;
-    submit.pSignalSemaphores    = &render_semaphore_;
+    submit.pSignalSemaphores    = &cur_frame.render_semaphore;
     submit.commandBufferCount   = 1;
-    submit.pCommandBuffers      = &main_command_buffer_;
+    submit.pCommandBuffers      = &cmd_buffer;
     // submit command buffer to the queue and execute it.
     // _renderFence will now block until the graphic commands finish execution
-    VK_CHECK(vkQueueSubmit(graphics_queue_, 1, &submit, render_fence_));
+    VK_CHECK(
+        vkQueueSubmit(graphics_queue_, 1, &submit, cur_frame.render_fence));
 
     // this will put the image we just rendered into the visible window.
     // we want to wait on the _renderSemaphore for that,
@@ -550,7 +568,7 @@ void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
     presentInfo.pNext              = nullptr;
     presentInfo.pSwapchains        = &swapchain_;
     presentInfo.swapchainCount     = 1;
-    presentInfo.pWaitSemaphores    = &render_semaphore_;
+    presentInfo.pWaitSemaphores    = &cur_frame.render_semaphore;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pImageIndices      = &swapchainImageIndex;
     
@@ -566,11 +584,12 @@ void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
 
     // increase the number of frames drawn
     frame_number_++;
+    frame_idx_ = (frame_idx_ == kFramesInFlight - 1) ? 0 : frame_idx_ + 1;
 }
 
-void VulkanRHI::CmdBindPipeline(VkPipeline pipeline) {
-    vkCmdBindPipeline(main_command_buffer_, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                      pipeline);
+void VulkanRHI::CmdBindPipeline(VkCommandBuffer cmd_buffer,
+                                VkPipeline      pipeline) {
+    vkCmdBindPipeline(cmd_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
     // set viewport & scissor when swapchain recreated
     VkViewport viewport{};
@@ -580,15 +599,16 @@ void VulkanRHI::CmdBindPipeline(VkPipeline pipeline) {
     viewport.height   = (float)extent_.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
-    vkCmdSetViewport(main_command_buffer_, 0, 1, &viewport);
+    vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
 
     VkRect2D scissor{};
     scissor.offset = {0, 0};
     scissor.extent = extent_;
-    vkCmdSetScissor(main_command_buffer_, 0, 1, &scissor);
+    vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
 }
 
-void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) { 
+void VulkanRHI::RenderPass(VkCommandBuffer                      cmd_buffer,
+                           const std::vector<vk::RenderObject>& renderables) { 
     Vec3f camPos = {0.f, -6.f, -10.f};
 
     Mat4x4f view = Mat4x4f::Translation(camPos);
@@ -611,7 +631,7 @@ void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) {
 
         // only bind the pipeline if it doesn't match with the already bound one
         if (object.material != lastMaterial) {
-            CmdBindPipeline(object.material->pipeline);
+            CmdBindPipeline(cmd_buffer, object.material->pipeline);
             lastMaterial = object.material;
         }
 
@@ -626,8 +646,7 @@ void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) {
         constants.color = Vec4f(cvars::GetVec3f("color").value(), 1.0f);
 
         // upload the mesh to the GPU via push constants
-        vkCmdPushConstants(main_command_buffer_,
-                           object.material->pipelineLayout,
+        vkCmdPushConstants(cmd_buffer, object.material->pipelineLayout,
                            VK_SHADER_STAGE_VERTEX_BIT, 0,
                            sizeof(vk::MeshPushConstants), &constants);
 
@@ -635,16 +654,15 @@ void VulkanRHI::RenderPass(const std::vector<vk::RenderObject>& renderables) {
         if (object.mesh != lastMesh) {
             // bind the mesh vertex buffer with offset 0
             VkDeviceSize offset = 0;
-            vkCmdBindVertexBuffers(main_command_buffer_, 0, 1,
+            vkCmdBindVertexBuffers(cmd_buffer, 0, 1,
                                    &object.mesh->vertex_buffer.buffer, &offset);
-            vkCmdBindIndexBuffer(main_command_buffer_,
-                                 object.mesh->index_buffer.buffer, 0,
-                                 vk::Mesh::kVkIndexType);
+            vkCmdBindIndexBuffer(cmd_buffer, object.mesh->index_buffer.buffer,
+                                 0, vk::Mesh::kVkIndexType);
             lastMesh = object.mesh;
         }
         // we can now draw
-        vkCmdDrawIndexed(main_command_buffer_,
-                         (uint32_t)object.mesh->indices.size(), 1, 0, 0, 0);
+        vkCmdDrawIndexed(cmd_buffer, (uint32_t)object.mesh->indices.size(), 1,
+                         0, 0, 0);
     }
 
 }
@@ -684,8 +702,9 @@ bool VulkanRHI::LoadShaderModule(const std::string& filepath,
     return true;
 }
 
-VkResult VulkanRHI::WaitForLastFrame() {
-    return vkWaitForFences(device_, 1, &render_fence_, true, kTimeout);
+VkResult VulkanRHI::WaitForCurrentFrame() {
+    auto& cur_frame = frames_[frame_idx_];
+    return vkWaitForFences(device_, 1, &cur_frame.render_fence, true, kTimeout);
 }
 
 void VulkanRHI::ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func) {
