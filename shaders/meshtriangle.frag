@@ -1,12 +1,23 @@
-//glsl version 4.5
-#version 450
+#version 460
 
-layout (location = 0) in vec3 inColor;
+layout (location = 0) in vec3 in_color;
+layout (location = 1) in vec2 in_texcoord;
 
-//output write
-layout (location = 0) out vec4 outFragColor;
+layout (location = 0) out vec4 out_color;
+
+layout(set = 0, binding = 1) uniform _unused_name_env_lighting_buffer
+{
+    vec4 fog_color; // w is for exponent
+	vec4 fog_distances; //x for min, y for max, zw unused.
+	vec4 ambient_color;
+	vec4 sunlight_direction; // w for sun power
+	vec4 sunlight_color;
+};
+
+layout(set = 2, binding = 0) uniform sampler2D tex1;
 
 void main()
 {
-	outFragColor = vec4(inColor, 1.0);
+	vec3 color = texture(tex1, in_texcoord).xyz;
+	out_color = vec4(color * ambient_color.xyz, 1.0);
 }

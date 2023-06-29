@@ -1,4 +1,5 @@
 #include "render_scene.h"
+#include "core/scope_guard.h"
 
 #ifdef _WIN32
 #include <codeanalysis/warnings.h>
@@ -8,6 +9,9 @@
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader/tiny_obj_loader.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image/stb_image.h"
 
 #ifdef _WIN32
 #pragma warning(pop)
@@ -49,78 +53,98 @@ bool RenderScene::LoadMeshFromObjFile(vk::Mesh&       mesh,
         return false;
     }
 
-    std::unordered_map<vk::Vertex, vk::Mesh::IndexType> vertex_hashmap{};
+    auto vertex_hashmap =
+        std::unordered_map<vk::Vertex, vk::Mesh::IndexType, vk::Vertex::Hash>();
 
     // Loop over shapes
-    for (size_t s = 0; s < shapes.size(); s++) {
-        // Loop over faces(polygon)
-        size_t index_offset = 0;
-        for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++) {
-            // hardcode loading to triangles
-            size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
+    for (const auto& shape : shapes) {
+        for (const auto& idx : shape.mesh.indices) {
+            // vertex position
+            tinyobj::real_t vx =
+                attrib.vertices[3LL * idx.vertex_index + 0];
+            tinyobj::real_t vy =
+                attrib.vertices[3LL * idx.vertex_index + 1];
+            tinyobj::real_t vz =
+                attrib.vertices[3LL * idx.vertex_index + 2];
+            // vertex normal
+            tinyobj::real_t nx = attrib.normals[3LL * idx.normal_index + 0];
+            tinyobj::real_t ny = attrib.normals[3LL * idx.normal_index + 1];
+            tinyobj::real_t nz = attrib.normals[3LL * idx.normal_index + 2];
+            // vertex texcoord
+            tinyobj::real_t tx =
+                attrib.texcoords[2LL * idx.texcoord_index + 0];
+            tinyobj::real_t ty =
+                attrib.texcoords[2LL * idx.texcoord_index + 1];
+            // Optional: vertex colors
+            tinyobj::real_t r = attrib.colors[3LL * idx.vertex_index + 0];
+            tinyobj::real_t g = attrib.colors[3LL * idx.vertex_index + 1];
+            tinyobj::real_t b = attrib.colors[3LL * idx.vertex_index + 2];
 
-            // Loop over vertices in the face.
-            for (size_t v = 0; v < fv; v++) {
-                // access to vertex
-                tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
+            // copy it into our vertex
+            vk::Vertex new_vert{};
+            new_vert.position.x = vx;
+            new_vert.position.y = vy;
+            new_vert.position.z = vz;
+            new_vert.normal.x   = nx;
+            new_vert.normal.y   = ny;
+            new_vert.normal.z   = nz;
+            new_vert.texcoord.x = tx;
+            new_vert.texcoord.y = 1.0f - ty;
+            new_vert.color.r    = r;
+            new_vert.color.g    = g;
+            new_vert.color.b    = b;
 
-                // vertex position
-                tinyobj::real_t vx =
-                    attrib.vertices[3LL * idx.vertex_index + 0];
-                tinyobj::real_t vy =
-                    attrib.vertices[3LL * idx.vertex_index + 1];
-                tinyobj::real_t vz =
-                    attrib.vertices[3LL * idx.vertex_index + 2];
-                // vertex normal
-                tinyobj::real_t nx = attrib.normals[3LL * idx.normal_index + 0];
-                tinyobj::real_t ny = attrib.normals[3LL * idx.normal_index + 1];
-                tinyobj::real_t nz = attrib.normals[3LL * idx.normal_index + 2];
-                // vertex texcoord
-                tinyobj::real_t tx =
-                    attrib.texcoords[2LL * idx.texcoord_index + 0];
-                tinyobj::real_t ty =
-                    attrib.texcoords[2LL * idx.texcoord_index + 1];
-                // Optional: vertex colors
-                tinyobj::real_t r = attrib.colors[3LL * idx.vertex_index + 0];
-                tinyobj::real_t g = attrib.colors[3LL * idx.vertex_index + 1];
-                tinyobj::real_t b = attrib.colors[3LL * idx.vertex_index + 2];
-
-                // copy it into our vertex
-                vk::Vertex new_vert{};
-                new_vert.position.x = vx;
-                new_vert.position.y = vy;
-                new_vert.position.z = vz;
-
-                new_vert.normal.x = nx;
-                new_vert.normal.y = ny;
-                new_vert.normal.z = nz;
-
-                new_vert.texcoord.x = tx;
-                new_vert.texcoord.y = 1.0f - ty;
-
-                // we are setting the vertex color as the vertex normal.
-                // This is just for display purposes
-                // TODO: change normal color to shader
-                new_vert.color = new_vert.normal;
-                //new_vert.color.r = r;
-                //new_vert.color.g = g;
-                //new_vert.color.b = b;
-
-                auto it = vertex_hashmap.find(new_vert);
-                if (it == vertex_hashmap.end()) {
-                    vertex_hashmap[new_vert] =
-                        (vk::Mesh::IndexType)mesh.vertices.size();
-                    mesh.vertices.emplace_back(new_vert);
-                }
-
-                mesh.indices.emplace_back(vertex_hashmap[new_vert]);
+            auto it = vertex_hashmap.find(new_vert);
+            if (it == vertex_hashmap.end()) {
+                vertex_hashmap[new_vert] =
+                    (vk::Mesh::IndexType)mesh.vertices.size();
+                mesh.vertices.emplace_back(new_vert);
             }
-            index_offset += fv;
+
+            mesh.indices.emplace_back(vertex_hashmap[new_vert]);
         }
     }
 
+    rhi_->UploadMesh(mesh);
+
     return true;
 }
+
+bool RenderScene::LoadTextureFromFile(vk::Texture&    texture,
+                                      const fs::path& filepath,
+                                      TextureFormat   format) {
+    int stb_format = STBI_default;
+    switch (format) {
+        case TextureFormat::kRGB:
+            stb_format     = STBI_rgb;
+            texture.format = VK_FORMAT_R8G8B8_SRGB;
+            break;
+        case TextureFormat::kRGBA:
+            stb_format     = STBI_rgb_alpha;
+            texture.format = VK_FORMAT_R8G8B8A8_SRGB;
+            break;
+        case TextureFormat::kGray:
+            stb_format     = STBI_grey;
+            texture.format = VK_FORMAT_R8_UNORM;
+            break;
+    }
+    auto& absolute_path =
+        filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
+
+    int      texWidth, texHeight, texChannels;
+    stbi_uc* pixels = stbi_load(absolute_path.string().c_str(), &texWidth,
+                                &texHeight, &texChannels, stb_format);
+    if (!pixels) {
+        LOG_ERROR("Failed to load texture file {}", filepath);
+        return false;
+    }
+
+    rhi_->UploadTexture(texture, pixels, texWidth, texHeight, texChannels);
+
+    stbi_image_free(pixels);
+    return true;
+}
+
 
 vk::Material* RenderScene::GetMaterial(const std::string& name) {
     //search for the object, and return nullptr if not found
@@ -142,7 +166,7 @@ vk::Mesh* RenderScene::GetMesh(const std::string& name) {
 }
 
 void RenderScene::LoadScene() {
-    // Create meshes
+    // Load meshes
     vk::Mesh triangle_mesh{};
     triangle_mesh.vertices.resize(3);
 
@@ -155,41 +179,50 @@ void RenderScene::LoadScene() {
     triangle_mesh.vertices[2].color = {0.f, 1.f, 0.0f};  // pure green
 
     triangle_mesh.indices = {0, 1, 2};
+    rhi_->UploadMesh(triangle_mesh);
+    meshes_["triangle"] = triangle_mesh;
 
-    vk::Mesh monkey_mesh{};
-    if (!LoadMeshFromObjFile(monkey_mesh, "models/monkey_smooth.obj")) {
+    if (!LoadMeshFromObjFile(meshes_["monkey"], "models/monkey_smooth.obj")) {
         LOG_ERROR("Loading .obj file failed");
     }
 
-    rhi_->UploadMesh(triangle_mesh);
-    rhi_->UploadMesh(monkey_mesh);
+    if (!LoadMeshFromObjFile(meshes_["empire"],
+                             "scenes/lost_empire/lost_empire.obj")) {
+        LOG_ERROR("Loading .obj file failed");
+    }
 
-    // note that we are copying them. 
-    // Eventually we will delete the hardcoded _monkey and _triangle meshes, 
-    // so it's no problem now.
-    meshes_["triangle"] = triangle_mesh;
-    meshes_["monkey"]   = monkey_mesh;
+    // Load textures
+    if (!LoadTextureFromFile(textures_["empire_diffuse"],
+                             "scenes/lost_empire/lost_empire-RGBA.png",
+                             TextureFormat::kRGBA)) {
+        LOG_ERROR("Loading .png file failed");
+    }
 
     // Create materials
-    materials_["meshtriangle"] =
-        std::move(rhi_->CreateMaterial("meshtriangle"));
+    materials_["meshtriangle"] = std::move(
+        rhi_->CreateMaterial("meshtriangle", textures_["empire_diffuse"].image_view));
 
     // Create renderables
-    vk::RenderObject monkey{};
-    monkey.mesh     = GetMesh("monkey");
-    monkey.material = GetMaterial("meshtriangle");
-    renderables.emplace_back(monkey);
+    //vk::RenderObject monkey{};
+    //monkey.mesh     = GetMesh("monkey");
+    //monkey.material = GetMaterial("meshtriangle");
+    //renderables.emplace_back(monkey);
 
-    for (int x = -20; x <= 20; x++) {
-        for (int y = -20; y <= 20; y++) {
-            vk::RenderObject tri{};
-            tri.mesh     = GetMesh("triangle");
-            tri.material = GetMaterial("meshtriangle");
-            tri.position = Vec3f(x, 0, y);
-            tri.scale    = Vec3f(0.2, 0.2, 0.2);
-            renderables.emplace_back(tri);
-        }
-    }
+    //for (int x = -20; x <= 20; x++) {
+    //    for (int y = -20; y <= 20; y++) {
+    //        vk::RenderObject tri{};
+    //        tri.mesh     = GetMesh("triangle");
+    //        tri.material = GetMaterial("meshtriangle");
+    //        tri.position = Vec3f(x, 0, y);
+    //        tri.scale    = Vec3f(0.2, 0.2, 0.2);
+    //        renderables.emplace_back(tri);
+    //    }
+    //}
+
+    vk::RenderObject& empire = renderables.emplace_back();
+    empire.mesh              = GetMesh("empire");
+    empire.material          = GetMaterial("meshtriangle");
+    empire.position          = {5, -10, 0};
 }
 
 }  // namespace lumi

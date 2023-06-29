@@ -317,45 +317,58 @@ struct PipelineBuilder {
     }
 };
 
-inline VertexInputDescription GetVertexInputDescription() {
-    VertexInputDescription description{};
-
-    // we will have just 1 vertex buffer binding, with a per-vertex rate
-    VkVertexInputBindingDescription mainBinding{};
-    mainBinding.binding   = 0;
-    mainBinding.stride    = sizeof(Vertex);
-    mainBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-    description.bindings.emplace_back(mainBinding);
-
-    // Position will be stored at Location 0
-    VkVertexInputAttributeDescription positionAttribute{};
-    positionAttribute.binding  = 0;
-    positionAttribute.location = 0;
-    positionAttribute.format   = VK_FORMAT_R32G32B32_SFLOAT;
-    positionAttribute.offset   = offsetof(Vertex, position);
-
-    // Normal will be stored at Location 1
-    VkVertexInputAttributeDescription normalAttribute{};
-    normalAttribute.binding  = 0;
-    normalAttribute.location = 1;
-    normalAttribute.format   = VK_FORMAT_R32G32B32_SFLOAT;
-    normalAttribute.offset   = offsetof(Vertex, normal);
-
-    // Color will be stored at Location 2
-    VkVertexInputAttributeDescription colorAttribute{};
-    colorAttribute.binding  = 0;
-    colorAttribute.location = 2;
-    colorAttribute.format   = VK_FORMAT_R32G32B32_SFLOAT;
-    colorAttribute.offset   = offsetof(Vertex, color);
-
-    description.attributes.emplace_back(positionAttribute);
-    description.attributes.emplace_back(normalAttribute);
-    description.attributes.emplace_back(colorAttribute);
-    return description;
+inline VkDescriptorSetLayoutBinding BuildDescriptorSetLayoutBinding(
+    VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
+    VkDescriptorSetLayoutBinding setbind{};
+    setbind.binding            = binding;
+    setbind.descriptorCount    = 1;
+    setbind.descriptorType     = type;
+    setbind.pImmutableSamplers = nullptr;
+    setbind.stageFlags         = stageFlags;
+    return setbind;
 }
 
+inline VkWriteDescriptorSet BuildWriteDescriptorSet(
+    VkDescriptorType type, VkDescriptorSet dstSet,
+    VkDescriptorBufferInfo* bufferInfo, uint32_t binding) {
+    VkWriteDescriptorSet write{};
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext           = nullptr;
+    write.dstBinding      = binding;
+    write.dstSet          = dstSet;
+    write.descriptorCount = 1;
+    write.descriptorType  = type;
+    write.pBufferInfo     = bufferInfo;
+    return write;
+}
+
+inline VkSamplerCreateInfo BuildSamplerCreateInfo(
+    VkFilter             filters,
+    VkSamplerAddressMode samplerAddressMode = VK_SAMPLER_ADDRESS_MODE_REPEAT) {
+    VkSamplerCreateInfo info{};
+    info.sType        = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    info.pNext        = nullptr;
+    info.magFilter    = filters;
+    info.minFilter    = filters;
+    info.addressModeU = samplerAddressMode;
+    info.addressModeV = samplerAddressMode;
+    info.addressModeW = samplerAddressMode;
+    return info;
+}
+
+inline VkWriteDescriptorSet BuildWriteDescriptorSet(
+    VkDescriptorType type, VkDescriptorSet dstSet,
+    VkDescriptorImageInfo* imageInfo, uint32_t binding) {
+    VkWriteDescriptorSet write{};
+    write.sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.pNext           = nullptr;
+    write.dstBinding      = binding;
+    write.dstSet          = dstSet;
+    write.descriptorCount = 1;
+    write.descriptorType  = type;
+    write.pImageInfo      = imageInfo;
+    return write;
+}
 
 }  // namespace vk
-
 }  // namespace lumi

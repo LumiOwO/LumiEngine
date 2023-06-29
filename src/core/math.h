@@ -8,9 +8,10 @@
 
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
-#include "glm/gtx/quaternion.hpp"
+#include "glm/gtc/color_space.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/hash.hpp"
 
 #ifdef _WIN32
@@ -141,12 +142,15 @@ inline constexpr float kPi        = 3.14159265358979323846264338327950288f;
 inline constexpr float kTwoPi     = 2.0f * kPi;
 inline constexpr float kHalfPi    = 0.5f * kPi;
 inline constexpr float kOneOverPi = 1.0f / kPi;
-inline constexpr float kDeg2Rad   = kPi / 180.0f;
-inline constexpr float kRad2Deg   = 180.0f / kPi;
 
 inline float ToRadians(float degrees) { return glm::radians(degrees); }
-
 inline float ToDegrees(float radians) { return glm::degrees(radians); }
+
+inline Vec3f ToLinear(Vec3f srgb) { return glm::convertSRGBToLinear(srgb); }
+inline Vec4f ToLinear(Vec4f srgb) { return glm::convertSRGBToLinear(srgb); }
+
+inline Vec3f ToSRGB(Vec3f linear) { return glm::convertLinearToSRGB(linear); }
+inline Vec4f ToSRGB(Vec4f linear) { return glm::convertLinearToSRGB(linear); }
 
 }  // namespace lumi
 

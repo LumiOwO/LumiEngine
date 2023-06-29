@@ -1,33 +1,12 @@
 {
-  "color": {
+  "ambient": {
     "#is_color": true,
-    "#value": [0.3764958679676056,0.7207207083702087,0.0973946750164032]
+    "#value": [1.0,1.0,1.0]
   },
-  "color4": [113.125,4.25,1.0,1.0],
-  "colored": {
-    "#description": "tolored",
-    "#value": false
-  },
-  "padding": [-71.875,-107.0],
-  "test": {
-    "#readonly": true,
-    "#value": false,
-    "a": "42413",
-    "b": true,
-    "c": {
-      "#is_unit": true,
-      "#value": 0.05999999865889549
-    },
-    "d": {
-      "f": -28.125,
-      "ff": 21
-    },
-    "vec": [10.0,10.0,0.0]
-  },
-  "value": {
-    "a": {
-      "#description": "test.d.f",
-      "#value": 12.0
-    }
+  "camera": [-10.25,-13.875,-20.375],
+  "clear_color": {
+    "#advanced": true,
+    "#is_color": true,
+    "#value": [0.0470588244497776,0.0470588244497776,0.0470588244497776]
   }
 }

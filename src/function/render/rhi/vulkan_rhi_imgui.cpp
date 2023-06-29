@@ -99,7 +99,7 @@ void VulkanRHI::ImGuiInit() {
     ImGui_ImplVulkan_DestroyFontUploadObjects();
 
     // add the destroy the imgui created structures
-    destruction_queue_default_.Push([=]() {
+    destruction_queue_default_.Push([this, imguiPool]() {
         vkDestroyDescriptorPool(device_, imguiPool, nullptr);
         ImGui_ImplVulkan_Shutdown();
         ImGuiWindowShutdown();

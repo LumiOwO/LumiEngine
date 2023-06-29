@@ -59,7 +59,7 @@ void ImGuiShowCVarsDesc(CVarDesc* desc) {
         ImGui::BeginDisabled();
     }
 
-    ScopeGuard guard = [=]() {
+    ScopeGuard guard = [desc]() {
         if (desc->flags & CVarFlags::kReadOnly) {
             ImGui::EndDisabled();
         }
@@ -113,7 +113,6 @@ void ImGuiShowCVarsDesc(CVarDesc* desc) {
                 v_speed, v_min, v_max, "%.3f", ImGuiSliderFlags_AlwaysClamp);
         }
     }
-
 }
 
 void ShowCVarsInCurrentNode(CVarSystem::ImGuiCVarTreeNode* node) {
@@ -130,7 +129,7 @@ void ShowCVarsInCurrentNode(CVarSystem::ImGuiCVarTreeNode* node) {
     if (!ImGui::BeginTable("table", 2, ImGuiTableFlags_SizingStretchProp)) {
         return;
     }
-    ScopeGuard guard = [=]() {
+    ScopeGuard guard = [node]() {
         ImGui::EndTable();
         if (node->name.empty()) {
             ImGui::TreePop();
@@ -147,6 +146,9 @@ void ShowCVarsInCurrentNode(CVarSystem::ImGuiCVarTreeNode* node) {
         ImGui::TableNextColumn();
         ImGui::AlignTextToFramePadding();
         ImGui::Text(last_name.data());
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip(desc->description.c_str());
+        }
 
         ImGui::TableNextColumn();
         ImGuiShowCVarsDesc(desc);

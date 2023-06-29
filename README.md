@@ -34,3 +34,4 @@ Then open the Visual Studio solution in the build directory and build it manuall
 ## Todos
 
 - [x] Index buffer
+- [ ] Instanced rendering
