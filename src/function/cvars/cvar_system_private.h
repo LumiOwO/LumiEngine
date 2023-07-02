@@ -45,13 +45,14 @@ struct CVarArray : public CVarArrayBase {
 
     int Add(CVarDesc* p_desc, const T& value) {
         LOG_ASSERT(cnt < SIZE, "Adding {} to a full CVarArray", p_desc->name);
-
         int32_t index = cnt;
         cnt++;
 
-        values[index].p_desc = p_desc;
-        values[index].value  = value;
-        p_desc->index_       = index;
+        auto& storage  = values[index];
+        storage.p_desc = p_desc;
+        storage.value  = value;
+
+        p_desc->index_ = index;
         return index;
     }
 };
@@ -120,7 +121,8 @@ struct CVarSystem : public ISingleton<CVarSystem> {
     // find by name
     template <typename T>
     CVar<T> CreateCVar(const std::string_view& name, const T& value,
-                       const std::string_view& description, CVarFlags flags) {
+                       const std::string_view& description, CVarFlags flags,
+                       float min, float max) {
         auto hash = StringHash(name);
 
         CVarDesc* p_found_desc = FindCVarDescInTable(hash);
@@ -139,6 +141,8 @@ struct CVarSystem : public ISingleton<CVarSystem> {
         desc.description = description.empty() ? name : description;
         desc.flags       = flags;
         desc.type        = CVar<T>::type();
+        desc.min         = min;
+        desc.max         = max;
 
         auto p_array = GetCVarArrayPtr<T>();
         p_array->Add(&desc, value);

@@ -3,7 +3,9 @@
 
 namespace lumi {
 
-void RenderSystem::Init() {
+void RenderSystem::Init(std::shared_ptr<Window> window) {
+    window_ = window;
+
     rhi_ = std::make_shared<VulkanRHI>();
 
     rhi_->CreateSurface = [this](VkInstance instance, VkSurfaceKHR* p_surface) {
@@ -20,12 +22,12 @@ void RenderSystem::Init() {
 
     rhi_->Init();
 
-    render_scene_ = std::make_shared<RenderScene>(rhi_);
-    render_scene_->LoadScene();
+    scene_ = std::make_shared<RenderScene>(rhi_);
+    scene_->LoadScene();
 }
 
 void RenderSystem::Tick() { 
-    rhi_->Render(render_scene_->renderables); 
+    rhi_->Render(scene_); 
 }
 
 void RenderSystem::Finalize() {

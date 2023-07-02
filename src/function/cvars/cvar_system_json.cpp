@@ -31,7 +31,8 @@ Json CVarStorage<T>::ToJson() {
         (p_desc->description != p_desc->name) ? p_desc->description : "";
     CVarFlags flags = p_desc->flags;
 
-    if (description.empty() && flags == CVarFlags::kNone) {
+    if (description.empty() && flags == CVarFlags::kNone &&
+        p_desc->min == kNegInf && p_desc->max == kPosInf) {
         // primitive
         json = value;
     } else {
@@ -46,11 +47,19 @@ Json CVarStorage<T>::ToJson() {
         if (flags & CVarFlags::kAdvanced) {
             json["#advanced"] = true;
         }
-        if (flags & CVarFlags::kIsUnit) {
+        bool is_unit = flags & CVarFlags::kIsUnit;
+        if (is_unit) {
             json["#is_unit"] = true;
         }
-        if (flags & CVarFlags::kIsColor) {
+        bool is_color = flags & CVarFlags::kIsColor;
+        if (is_color) {
             json["#is_color"] = true;
+        }
+        if (!is_unit && !is_color && p_desc->min != kNegInf) {
+            json["#min"] = p_desc->min;
+        }
+        if (!is_unit && !is_color && p_desc->max != kPosInf) {
+            json["#max"] = p_desc->max;
         }
     }
 
@@ -154,27 +163,46 @@ void CVarSystem::CreateCVarsFromJsonLeaf(const Json&        leaf,
             ? leaf["#description"]
             : "";
     CVarFlags flags = CVarFlags::kNone;
+    float     min   = kNegInf;
+    float     max   = kPosInf;
     if (leaf.is_object()) {
+        min = leaf.value("#min", kNegInf);
+        max = leaf.value("#max", kPosInf);
+
         if (leaf.value("#readonly", false)) flags |= CVarFlags::kReadOnly;
         if (leaf.value("#advanced", false)) flags |= CVarFlags::kAdvanced;
-        if (leaf.value("#is_unit" , false)) flags |= CVarFlags::kIsUnit;
-        if (leaf.value("#is_color", false)) flags |= CVarFlags::kIsColor;
+        if (leaf.value("#is_unit" , false)) {
+            flags |= CVarFlags::kIsUnit;
+            min = 0.f;
+            max = 1.f;
+        }
+        if (leaf.value("#is_color", false)) {
+            flags |= CVarFlags::kIsColor;
+            min = 0.f;
+            max = 1.f;
+        }
     }
 
     if (j_value.is_boolean()) {
-        CreateCVar<cvars::BoolType>(name, j_value, description, flags);
+        CreateCVar<cvars::BoolType>(name, j_value, description, flags, min,
+                                    max);
     } else if (j_value.is_number_integer()) {
-        CreateCVar<cvars::IntType>(name, j_value, description, flags);
+        CreateCVar<cvars::IntType>(name, j_value, description, flags, min, max);
     } else if (j_value.is_number_float()) {
-        CreateCVar<cvars::FloatType>(name, j_value, description, flags);
+        CreateCVar<cvars::FloatType>(name, j_value, description, flags, min,
+                                     max);
     } else if (j_value.is_string()) {
-        CreateCVar<cvars::StringType>(name, j_value, description, flags);
+        CreateCVar<cvars::StringType>(name, j_value, description, flags, min,
+                                      max);
     } else if (j_value.is_array() && j_value.size() == 2) {
-        CreateCVar<cvars::Vec2fType>(name, j_value, description, flags);
+        CreateCVar<cvars::Vec2fType>(name, j_value, description, flags, min,
+                                     max);
     } else if (j_value.is_array() && j_value.size() == 3) {
-        CreateCVar<cvars::Vec3fType>(name, j_value, description, flags);
+        CreateCVar<cvars::Vec3fType>(name, j_value, description, flags, min,
+                                     max);
     } else if (j_value.is_array() && j_value.size() == 4) {
-        CreateCVar<cvars::Vec4fType>(name, j_value, description, flags);
+        CreateCVar<cvars::Vec4fType>(name, j_value, description, flags, min,
+                                     max);
     } else {
         LOG_WARNING("Ignore console variable \"{}\" due to invalid value type",
                     name);

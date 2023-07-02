@@ -96,44 +96,51 @@ void SaveToDisk() {
 }
 
 CVarBool CreateBool(const std::string_view& name, BoolType value,
-                    const std::string_view& description, CVarFlags flags) {
+                    const std::string_view& description, CVarFlags flags,
+                    float min, float max) {
     return CVarSystem::Instance().CreateCVar<BoolType>(name, value, description,
-                                                       flags);
+                                                       flags, min, max);
 }
 
 CVarInt CreateInt(const std::string_view& name, IntType value,
-                  const std::string_view& description, CVarFlags flags) {
+                  const std::string_view& description, CVarFlags flags,
+                  float min, float max) {
     return CVarSystem::Instance().CreateCVar<IntType>(name, value, description,
-                                                      flags);
+                                                      flags, min, max);
 }
 CVarFloat CreateFloat(const std::string_view& name, FloatType value,
-                      const std::string_view& description, CVarFlags flags) {
-    return CVarSystem::Instance().CreateCVar<FloatType>(name, value,
-                                                        description, flags);
+                      const std::string_view& description, CVarFlags flags,
+                      float min, float max) {
+    return CVarSystem::Instance().CreateCVar<FloatType>(
+        name, value, description, flags, min, max);
 }
 
 CVarString CreateString(const std::string_view& name, const StringType& value,
-                        const std::string_view& description, CVarFlags flags) {
-    return CVarSystem::Instance().CreateCVar<StringType>(name, value,
-                                                         description, flags);
+                        const std::string_view& description, CVarFlags flags,
+                        float min, float max) {
+    return CVarSystem::Instance().CreateCVar<StringType>(
+        name, value, description, flags, min, max);
 }
 
 CVarVec2f CreateVec2f(const std::string_view& name, const Vec2fType& value,
-                      const std::string_view& description, CVarFlags flags) {
-    return CVarSystem::Instance().CreateCVar<Vec2fType>(name, value,
-                                                        description, flags);
+                      const std::string_view& description, CVarFlags flags,
+                      float min, float max) {
+    return CVarSystem::Instance().CreateCVar<Vec2fType>(
+        name, value, description, flags, min, max);
 }
 
 CVarVec3f CreateVec3f(const std::string_view& name, const Vec3fType& value,
-                      const std::string_view& description, CVarFlags flags) {
-    return CVarSystem::Instance().CreateCVar<Vec3fType>(name, value,
-                                                        description, flags);
+                      const std::string_view& description, CVarFlags flags,
+                      float min, float max) {
+    return CVarSystem::Instance().CreateCVar<Vec3fType>(
+        name, value, description, flags, min, max);
 }
 
 CVarVec4f CreateVec4f(const std::string_view& name, const Vec4fType& value,
-                      const std::string_view& description, CVarFlags flags) {
-    return CVarSystem::Instance().CreateCVar<Vec4fType>(name, value,
-                                                        description, flags);
+                      const std::string_view& description, CVarFlags flags,
+                      float min, float max) {
+    return CVarSystem::Instance().CreateCVar<Vec4fType>(
+        name, value, description, flags, min, max);
 }
 
 CVarBool GetBool(const std::string_view& name) {
@@ -279,6 +286,18 @@ template <typename T>
 CVarFlags CVar<T>::flags() const {
     CVarDesc* p_desc = CVarSystem::Instance().GetCVarDescPtr<T>(index_);
     return p_desc->flags;
+}
+
+template <typename T>
+float CVar<T>::min() const {
+    CVarDesc* p_desc = CVarSystem::Instance().GetCVarDescPtr<T>(index_);
+    return p_desc->min;
+}
+
+template <typename T>
+float CVar<T>::max() const {
+    CVarDesc* p_desc = CVarSystem::Instance().GetCVarDescPtr<T>(index_);
+    return p_desc->max;
 }
 
 // Explicitly instantiate only the classes you want to be defined.

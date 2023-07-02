@@ -112,26 +112,24 @@ bool RenderScene::LoadMeshFromObjFile(vk::Mesh&       mesh,
 
 bool RenderScene::LoadTextureFromFile(vk::Texture&    texture,
                                       const fs::path& filepath,
-                                      TextureFormat   format) {
+                                      VkFormat        format) {
+    texture.format = format;
     int stb_format = STBI_default;
     switch (format) {
-        case TextureFormat::kRGB:
-            stb_format     = STBI_rgb;
-            texture.format = VK_FORMAT_R8G8B8_SRGB;
+        case VK_FORMAT_R8G8B8_SRGB:
+            stb_format = STBI_rgb;
             break;
-        case TextureFormat::kRGBA:
-            stb_format     = STBI_rgb_alpha;
-            texture.format = VK_FORMAT_R8G8B8A8_SRGB;
+        case VK_FORMAT_R8G8B8A8_SRGB:
+            stb_format = STBI_rgb_alpha;
             break;
-        case TextureFormat::kGray:
-            stb_format     = STBI_grey;
-            texture.format = VK_FORMAT_R8_UNORM;
+        case VK_FORMAT_R8_UNORM:
+            stb_format = STBI_grey;
             break;
     }
+
+    int   texWidth, texHeight, texChannels;
     auto& absolute_path =
         filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
-
-    int      texWidth, texHeight, texChannels;
     stbi_uc* pixels = stbi_load(absolute_path.string().c_str(), &texWidth,
                                 &texHeight, &texChannels, stb_format);
     if (!pixels) {
@@ -168,17 +166,23 @@ vk::Mesh* RenderScene::GetMesh(const std::string& name) {
 void RenderScene::LoadScene() {
     // Load meshes
     vk::Mesh triangle_mesh{};
-    triangle_mesh.vertices.resize(3);
+    triangle_mesh.vertices.resize(6);
 
     triangle_mesh.vertices[0].position = {1.f, 1.f, 0.5f};
     triangle_mesh.vertices[1].position = {-1.f, 1.f, 0.5f};
-    triangle_mesh.vertices[2].position = {0.f, -1.f, 0.5f};
+    triangle_mesh.vertices[2].position = {-1.f, -1.f, 0.5f};
+    triangle_mesh.vertices[3].position = {1.f, 1.f, 0.5f};
+    triangle_mesh.vertices[4].position = {-1.f, -1.f, 0.5f};
+    triangle_mesh.vertices[5].position = {1.f, -1.f, 0.5f};
 
-    triangle_mesh.vertices[0].color = {0.f, 1.f, 0.0f};  // pure green
+    triangle_mesh.vertices[0].color = {1.f, 0.f, 0.0f};  // pure green
     triangle_mesh.vertices[1].color = {0.f, 1.f, 0.0f};  // pure green
-    triangle_mesh.vertices[2].color = {0.f, 1.f, 0.0f};  // pure green
+    triangle_mesh.vertices[2].color = {0.f, 0.f, 1.0f};  // pure green
+    triangle_mesh.vertices[3].color = {1.f, 0.f, 0.0f};  // pure green
+    triangle_mesh.vertices[4].color = {0.f, 0.f, 1.0f};  // pure green
+    triangle_mesh.vertices[5].color = {0.f, 1.f, 0.0f};  // pure green
 
-    triangle_mesh.indices = {0, 1, 2};
+    triangle_mesh.indices = {0, 1, 2, 3, 4, 5};
     rhi_->UploadMesh(triangle_mesh);
     meshes_["triangle"] = triangle_mesh;
 
@@ -194,7 +198,7 @@ void RenderScene::LoadScene() {
     // Load textures
     if (!LoadTextureFromFile(textures_["empire_diffuse"],
                              "scenes/lost_empire/lost_empire-RGBA.png",
-                             TextureFormat::kRGBA)) {
+                             VK_FORMAT_R8G8B8A8_SRGB)) {
         LOG_ERROR("Loading .png file failed");
     }
 
@@ -206,15 +210,17 @@ void RenderScene::LoadScene() {
     //vk::RenderObject monkey{};
     //monkey.mesh     = GetMesh("monkey");
     //monkey.material = GetMaterial("meshtriangle");
+    //monkey.rotation = Quaternion::Rotation(Vec3f(0, 0, ToRadians(0))) * monkey.rotation;
     //renderables.emplace_back(monkey);
 
-    //for (int x = -20; x <= 20; x++) {
-    //    for (int y = -20; y <= 20; y++) {
+    //for (int x = -0; x <= 0; x++) {
+    //    for (int y = -0; y <= 0; y++) {
     //        vk::RenderObject tri{};
     //        tri.mesh     = GetMesh("triangle");
     //        tri.material = GetMaterial("meshtriangle");
     //        tri.position = Vec3f(x, 0, y);
     //        tri.scale    = Vec3f(0.2, 0.2, 0.2);
+    //        tri.rotation = Quaternion::Rotation(0, 45, 0) * tri.rotation;
     //        renderables.emplace_back(tri);
     //    }
     //}

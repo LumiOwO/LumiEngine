@@ -11,12 +11,12 @@ void Engine::Init() {
     window_->Init();
 
     // Init render system
-    render_system_ = std::make_shared<RenderSystem>(window_);
-    render_system_->Init();
+    render_system_ = std::make_shared<RenderSystem>();
+    render_system_->Init(window_);
 
     // Init user input
     user_input_ = std::make_shared<UserInput>();
-    user_input_->Init(window_);
+    user_input_->Init(render_system_->scene(), window_);
 
 }
 
@@ -47,7 +47,9 @@ void Engine::Tick(float dt) {
     window_->Tick();
 }
 
-void Engine::TickLogic(float dt) {}
+void Engine::TickLogic(float dt) {
+    user_input_->Tick(dt);
+}
 
 void Engine::TickRender() {
     render_system_->Tick();

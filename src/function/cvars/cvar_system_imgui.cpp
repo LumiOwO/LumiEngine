@@ -69,9 +69,9 @@ void ImGuiShowCVarsDesc(CVarDesc* desc) {
      
     bool is_unit = (desc->flags & CVarFlags::kIsUnit) ||
                    (desc->flags & CVarFlags::kIsColor);
-    float v_min   = 0.f;
-    float v_max   = is_unit ? 1.f : 0.f;
-    float v_speed = is_unit ? 0.001f : .125f;
+    float v_min   = desc->min;
+    float v_max   = desc->max;
+    float v_speed = (v_min != v_max && v_max - v_min <= 2.f) ? 0.001f : .125f;
 
     CVarSystem& cvar_system = CVarSystem::Instance();
     if (desc->type == CVarType::kBool) {

@@ -35,3 +35,18 @@ Then open the Visual Studio solution in the build directory and build it manuall
 
 - [x] Index buffer
 - [ ] Instanced rendering
+- [ ] 整理坐标系
+    - glm的z轴向外为正
+    - vulkan ndc的y轴向下为正
+    - depth vulkan [0,1], opengl [-1,1]
+
+- materials
+    - buffer在material里构建
+    - descripor也在material里
+    - material->bind_pipeline
+    - material->bind_descriptor
+    - material->update_buffer(update_descriptor)
+        - per frame
+        - per object
+    - static Material::Construct<T>() { (assert derived); return new T; }
+    - 用 unordered map 来反射

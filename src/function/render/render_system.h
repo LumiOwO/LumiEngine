@@ -11,16 +11,16 @@ class RenderSystem {
 private:
     std::shared_ptr<Window>      window_{};
     std::shared_ptr<VulkanRHI>   rhi_{};
-    std::shared_ptr<RenderScene> render_scene_{};
+    std::shared_ptr<RenderScene> scene_{};
 
 public:
-    RenderSystem(std::shared_ptr<Window> window) : window_(window) {}
-
-    void Init();
+    void Init(std::shared_ptr<Window> window);
 
     void Tick();
 
     void Finalize();
+
+    std::shared_ptr<RenderScene> scene() { return scene_; }
 };
 
 }  // namespace lumi

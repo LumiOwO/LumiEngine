@@ -4,6 +4,8 @@
 
 namespace lumi {
 
+class RenderScene;
+
 class VulkanRHI {
 private:
     vk::DestructionQueue destruction_queue_default_{};
@@ -68,7 +70,8 @@ public:
 
     void Finalize();
 
-    void Render(const std::vector<vk::RenderObject>& renderables);
+    // TODO: remove scene from rhi and make it a RenderPass class
+    void Render(std::shared_ptr<RenderScene> scene);
 
     void UploadMesh(vk::Mesh& mesh);
 
@@ -94,8 +97,8 @@ private:
 
     void CmdBindPipeline(VkCommandBuffer cmd_buffer, vk::Material* material);
 
-    void RenderPass(VkCommandBuffer                      cmd_buffer,
-                    const std::vector<vk::RenderObject>& renderables);
+    void RenderPass(VkCommandBuffer              cmd_buffer,
+                    std::shared_ptr<RenderScene> scene);
     void GUIPass(VkCommandBuffer cmd_buffer);
 
     VkResult WaitForCurrentFrame();

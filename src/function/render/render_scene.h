@@ -4,15 +4,11 @@
 
 namespace lumi {
 
-enum class TextureFormat : int {
-    kRGB = 0,
-    kRGBA,
-    kGray,
-};
-
 class RenderScene {
 public:
     std::vector<vk::RenderObject> renderables{};
+
+    vk::Camera camera{};
 
 private:
     std::unordered_map<std::string, vk::Material> materials_{};
@@ -33,7 +29,7 @@ private:
     bool LoadMeshFromObjFile(vk::Mesh& mesh, const fs::path& filepath);
 
     bool LoadTextureFromFile(vk::Texture& texture, const fs::path& filepath,
-                             TextureFormat format);
+                             VkFormat format);
 };
 
 }  // namespace lumi

@@ -40,6 +40,8 @@ struct CVarDesc {
     std::string description{};
     CVarFlags   flags{};
     CVarType    type{};
+    float       min{};
+    float       max{};
     int32_t     index_{};
 };
 
@@ -69,6 +71,10 @@ public:
     const std::string& description() const;
 
     CVarFlags flags() const;
+
+    float min() const;
+
+    float max() const;
 
 private:
     int32_t index_ = -1;
@@ -102,25 +108,32 @@ void SaveToDisk();
 
 CVarBool   CreateBool(const std::string_view& name, BoolType value,
                       const std::string_view& description = "",
-                      CVarFlags               flags       = CVarFlags::kNone);
+                      CVarFlags               flags = CVarFlags::kNone,  //
+                      float min = kNegInf, float max = kPosInf);
 CVarInt    CreateInt(const std::string_view& name, IntType value,
                      const std::string_view& description = "",
-                     CVarFlags               flags       = CVarFlags::kNone);
+                     CVarFlags               flags       = CVarFlags::kNone,  //
+                     float min = kNegInf, float max = kPosInf);
 CVarFloat  CreateFloat(const std::string_view& name, FloatType value,
                        const std::string_view& description = "",
-                       CVarFlags               flags       = CVarFlags::kNone);
+                       CVarFlags               flags = CVarFlags::kNone,  //
+                       float min = kNegInf, float max = kPosInf);
 CVarString CreateString(const std::string_view& name, const StringType& value,
                         const std::string_view& description = "",
-                        CVarFlags               flags       = CVarFlags::kNone);
+                        CVarFlags               flags = CVarFlags::kNone,  //
+                        float min = kNegInf, float max = kPosInf);
 CVarVec2f  CreateVec2f(const std::string_view& name, const Vec2fType& value,
                        const std::string_view& description = "",
-                       CVarFlags               flags       = CVarFlags::kNone);
+                       CVarFlags               flags = CVarFlags::kNone,  //
+                       float min = kNegInf, float max = kPosInf);
 CVarVec3f  CreateVec3f(const std::string_view& name, const Vec3fType& value,
                        const std::string_view& description = "",
-                       CVarFlags               flags       = CVarFlags::kNone);
+                       CVarFlags               flags = CVarFlags::kNone,  //
+                       float min = kNegInf, float max = kPosInf);
 CVarVec4f  CreateVec4f(const std::string_view& name, const Vec4fType& value,
                        const std::string_view& description = "",
-                       CVarFlags               flags       = CVarFlags::kNone);
+                       CVarFlags               flags = CVarFlags::kNone,  //
+                       float min = kNegInf, float max = kPosInf);
 
 CVarBool   GetBool(const std::string_view& name);
 CVarInt    GetInt(const std::string_view& name);

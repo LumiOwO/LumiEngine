@@ -140,14 +140,6 @@ struct Material {
     VkDescriptorSet  texture_set{};
 };
 
-struct RenderObject {
-    Mesh*      mesh     = nullptr;
-    Material*  material = nullptr;
-    Vec3f      position = Vec3f::kZero;
-    Quaternion rotation = Quaternion::kIdentity;
-    Vec3f      scale    = Vec3f::kUnitScale;
-};
-
 struct CameraData {
     Mat4x4f view{};
     Mat4x4f proj{};
@@ -178,6 +170,36 @@ struct FrameData {
 
     VkDescriptorSet global_descriptor_set{};
     VkDescriptorSet mesh_instance_descriptor_set{};
+};
+
+// TODO: move out of vk namespace
+struct RenderObject {
+    Mesh*      mesh     = nullptr;
+    Material*  material = nullptr;
+    Vec3f      position = Vec3f::kZero;
+    Quaternion rotation = Quaternion::kIdentity;
+    Vec3f      scale    = Vec3f::kUnitScale;
+};
+
+struct Camera {
+    Vec3f position   = Vec3f::kZero;
+    Vec3f eulers_deg = Vec3f::kZero;
+    float fovy_deg   = 70.f;
+    float aspect     = 1700.f / 900.f;
+    float near       = 0.1f;
+    float far        = 200.0f;
+
+    Mat4x4f rotation() const {
+        return Mat4x4f::Rotation(ToRadians(eulers_deg));
+    }
+
+    Mat4x4f view() const {
+        return rotation().Transpose() * Mat4x4f::Translation(-position);
+    }
+
+    Mat4x4f projection() const {
+        return Mat4x4f::Perspective(ToRadians(fovy_deg), aspect, near, far);
+    }
 };
 
 }  // namespace vk

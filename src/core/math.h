@@ -1,26 +1,40 @@
 #pragma once
 
+#include "core/json.h"
+
 #ifdef _WIN32
 #include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
 #pragma warning(disable : ALL_CODE_ANALYSIS_WARNINGS)
 #endif
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_LEFT_HANDED
 #include "glm/glm.hpp"
 #include "glm/gtc/quaternion.hpp"
 #include "glm/gtc/color_space.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/quaternion.hpp"
 #include "glm/gtx/hash.hpp"
+#include "glm/gtx/euler_angles.hpp"
 
 #ifdef _WIN32
 #pragma warning(pop)
 #endif
 
-#include "core/json.h"
-
 namespace lumi {
+
+inline constexpr float kPosInf    = std::numeric_limits<float>::infinity();
+inline constexpr float kNegInf    = -std::numeric_limits<float>::infinity();
+inline constexpr float kInf       = kPosInf;
+inline constexpr float kEps       = FLT_EPSILON;
+inline constexpr float kPi        = 3.14159265358979323846264338327950288f;
+inline constexpr float kTwoPi     = 2.0f * kPi;
+inline constexpr float kHalfPi    = 0.5f * kPi;
+inline constexpr float kOneOverPi = 1.0f / kPi;
 
 struct Vec2f : public glm::vec2 {
     using glm::vec2::vec2;
@@ -42,6 +56,11 @@ inline constexpr Vec2f Vec2f::kUnitScale     = Vec2f(1, 1);
 
 struct Vec3f : public glm::vec3 {
     using glm::vec3::vec3;
+
+    Vec3f& operator+=(const Vec3f& v) {
+        *this = glm::vec3(*this) + v;
+        return *this;
+    }
 
     static const Vec3f kZero;
     static const Vec3f kUnitX;
@@ -104,19 +123,29 @@ struct Mat4x4f : public glm::mat4x4 {
     static const Mat4x4f kZero;
     static const Mat4x4f kIdentity;
 
-    static Mat4x4f Scale(const Vec3f& v) { return glm::scale(Mat4x4f(1.f), v); }
+    static Mat4x4f Scale(const Vec3f& v) { return glm::scale(kIdentity, v); }
 
     static Mat4x4f Rotation(float angle, const Vec3f& v) {
-        return glm::rotate(Mat4x4f(1.f), angle, v);
+        return glm::rotate(kIdentity, angle, v);
+    }
+
+    static Mat4x4f Rotation(Vec3f eulers) {
+        // yaw   <--> y
+        // pitch <--> x
+        // roll  <--> z
+        return glm::yawPitchRoll(eulers.y, eulers.x, eulers.z);
     }
 
     static Mat4x4f Translation(const Vec3f& v) {
-        return glm::translate(Mat4x4f(1.f), v);
+        return glm::translate(kIdentity, v);
     }
 
-    static Mat4x4f Perspective(float fovy, float aspect, float near, float far) {
+    static Mat4x4f Perspective(float fovy, float aspect, float near,
+                               float far) {
         return glm::perspective(fovy, aspect, near, far);
     }
+
+    Mat4x4f Transpose() const { return glm::transpose(*this); }
 };
 
 inline constexpr Mat4x4f Mat4x4f::kZero     = Mat4x4f(0.0f);
@@ -129,28 +158,59 @@ struct Quaternion : public glm::quat {
     static const Quaternion kIdentity;
 
     Mat4x4f ToMatrix() const { return glm::toMat4(*this); }
+
+    static Quaternion Rotation(float angle, const Vec3f& v) {
+        return glm::rotate(kIdentity, angle, v);
+    }
+
+    static Quaternion Rotation(Vec3f eulers) {
+        return glm::quat_cast(Mat4x4f::Rotation(eulers));
+    }
 };
 
 inline constexpr Quaternion Quaternion::kZero     = Quaternion(0, 0, 0, 0);
 inline constexpr Quaternion Quaternion::kIdentity = Quaternion(1, 0, 0, 0);
 
-inline constexpr float kPosInf    = std::numeric_limits<float>::infinity();
-inline constexpr float kNegInf    = -std::numeric_limits<float>::infinity();
-inline constexpr float kInf       = kPosInf;
-inline constexpr float kEps       = FLT_EPSILON;
-inline constexpr float kPi        = 3.14159265358979323846264338327950288f;
-inline constexpr float kTwoPi     = 2.0f * kPi;
-inline constexpr float kHalfPi    = 0.5f * kPi;
-inline constexpr float kOneOverPi = 1.0f / kPi;
+inline Quaternion ToQuaternion(const Mat4x4f& rotation_matrix) {
+    return glm::quat_cast(rotation_matrix);
+}
 
 inline float ToRadians(float degrees) { return glm::radians(degrees); }
+inline Vec2f ToRadians(Vec2f degrees) {
+    return glm::radians((glm::vec2)degrees);
+}
+inline Vec3f ToRadians(Vec3f degrees) {
+    return glm::radians((glm::vec3)degrees);
+}
+inline Vec4f ToRadians(Vec4f degrees) {
+    return glm::radians((glm::vec4)degrees);
+}
+
 inline float ToDegrees(float radians) { return glm::degrees(radians); }
+inline Vec2f ToDegrees(Vec2f radians) {
+    return glm::degrees((glm::vec2)radians);
+}
+inline Vec3f ToDegrees(Vec3f radians) {
+    return glm::degrees((glm::vec3)radians);
+}
+inline Vec4f ToDegrees(Vec4f radians) {
+    return glm::degrees((glm::vec4)radians);
+}
 
-inline Vec3f ToLinear(Vec3f srgb) { return glm::convertSRGBToLinear(srgb); }
-inline Vec4f ToLinear(Vec4f srgb) { return glm::convertSRGBToLinear(srgb); }
 
-inline Vec3f ToSRGB(Vec3f linear) { return glm::convertLinearToSRGB(linear); }
-inline Vec4f ToSRGB(Vec4f linear) { return glm::convertLinearToSRGB(linear); }
+inline Vec3f ToLinear(const Vec3f& srgb) {
+    return glm::convertSRGBToLinear(srgb);
+}
+inline Vec4f ToLinear(const Vec4f& srgb) {
+    return glm::convertSRGBToLinear(srgb);
+}
+
+inline Vec3f ToSRGB(const Vec3f& linear) {
+    return glm::convertLinearToSRGB(linear);
+}
+inline Vec4f ToSRGB(const Vec4f& linear) {
+    return glm::convertLinearToSRGB(linear);
+}
 
 }  // namespace lumi
 

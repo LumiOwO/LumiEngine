@@ -2,6 +2,9 @@
 #include "function/cvars/cvar_system.h"
 #include "core/scope_guard.h"
 
+// TODO: remove
+#include "function/render/render_scene.h"
+
 #ifdef _WIN32
 #include <codeanalysis/warnings.h>
 #pragma warning(push, 0)
@@ -35,7 +38,7 @@ void VulkanRHI::CreateVulkanInstance() {
 
     // make the Vulkan instance, with basic debug features
     auto&& vkb_inst = builder.set_app_name(LUMI_ENGINE_NAME)
-                        .require_api_version(1, 1, 0)
+                        .require_api_version(1, 3, 0)
 #ifdef LUMI_ENABLE_DEBUG_LOG
                         .request_validation_layers(true)
                         .use_default_debug_messenger()
@@ -120,7 +123,7 @@ void VulkanRHI::CreateVulkanInstance() {
     allocatorInfo.device         = device_;
     allocatorInfo.instance       = instance_;
     vmaCreateAllocator(&allocatorInfo, &allocator_);
-    
+
     destruction_queue_default_.Push([this]() {
         vmaDestroyAllocator(allocator_);
         vkDestroyDevice(device_, nullptr);
@@ -591,6 +594,7 @@ vk::Material VulkanRHI::CreateMaterial(const std::string& name,
     // we use dynamic viewport
     pipeline_builder.dynamic_states.emplace_back(VK_DYNAMIC_STATE_VIEWPORT);
     pipeline_builder.dynamic_states.emplace_back(VK_DYNAMIC_STATE_SCISSOR);
+    pipeline_builder.dynamic_states.emplace_back(VK_DYNAMIC_STATE_CULL_MODE);
 
     // configure the rasterizer to draw filled triangles
     pipeline_builder.rasterizer =
@@ -620,20 +624,22 @@ vk::Material VulkanRHI::CreateMaterial(const std::string& name,
     // Finally build pipeline
     VkPipeline pipeline = pipeline_builder.Build(device_, render_pass_);
 
-    // destroy all shader modules, outside of the queue
-    vkDestroyShaderModule(device_, vertex_shader, nullptr);
-    vkDestroyShaderModule(device_, fragment_shader, nullptr);
-
-    destruction_queue_default_.Push([this, pipeline, pipeline_layout]() {
-        vkDestroyPipeline(device_, pipeline, nullptr);
-        vkDestroyPipelineLayout(device_, pipeline_layout, nullptr);
-    });
-
     // create a sampler for the texture
     VkSamplerCreateInfo samplerInfo =
         vk::BuildSamplerCreateInfo(VK_FILTER_NEAREST);
     VkSampler blockySampler{};
     vkCreateSampler(device_, &samplerInfo, nullptr, &blockySampler);
+
+    // destroy all shader modules, outside of the queue
+    vkDestroyShaderModule(device_, vertex_shader, nullptr);
+    vkDestroyShaderModule(device_, fragment_shader, nullptr);
+
+    destruction_queue_default_.Push(
+        [this, pipeline, pipeline_layout, blockySampler]() {
+        vkDestroySampler(device_, blockySampler, nullptr);
+        vkDestroyPipeline(device_, pipeline, nullptr);
+        vkDestroyPipelineLayout(device_, pipeline_layout, nullptr);
+    });
 
     // allocate the descriptor set for single-texture to use on the material
     VkDescriptorSetAllocateInfo allocInfo{};
@@ -682,7 +688,7 @@ void VulkanRHI::RecreateSwapChain() {
     CreateFrameBuffers();
 }
 
-void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
+void VulkanRHI::Render(std::shared_ptr<RenderScene> scene) {
     // wait until the GPU has finished rendering the last frame.
     VK_CHECK(WaitForCurrentFrame());
     auto& cur_frame = frames_[frame_idx_];
@@ -742,7 +748,7 @@ void VulkanRHI::Render(const std::vector<vk::RenderObject>& renderables) {
     rpInfo.pClearValues        = clear_values.data();
     vkCmdBeginRenderPass(cmd_buffer, &rpInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    RenderPass(cmd_buffer, renderables);
+    RenderPass(cmd_buffer, scene);
 
     GUIPass(cmd_buffer);
 
@@ -806,9 +812,9 @@ void VulkanRHI::CmdBindPipeline(VkCommandBuffer cmd_buffer,
     // set viewport & scissor when swapchain recreated
     VkViewport viewport{};
     viewport.x        = 0.0f;
-    viewport.y        = 0.0f;
+    viewport.y        = (float)extent_.height;  // flip viewport for vulkan
     viewport.width    = (float)extent_.width;
-    viewport.height   = (float)extent_.height;
+    viewport.height   = -(float)extent_.height;  // flip viewport for vulkan
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     vkCmdSetViewport(cmd_buffer, 0, 1, &viewport);
@@ -817,6 +823,8 @@ void VulkanRHI::CmdBindPipeline(VkCommandBuffer cmd_buffer,
     scissor.offset = {0, 0};
     scissor.extent = extent_;
     vkCmdSetScissor(cmd_buffer, 0, 1, &scissor);
+
+    vkCmdSetCullMode(cmd_buffer, VK_CULL_MODE_BACK_BIT);
 
     uint32_t uniform_offset =
         (uint32_t)PaddedSizeOf<vk::EnvLightingData>() * frame_idx_;
@@ -833,16 +841,10 @@ void VulkanRHI::CmdBindPipeline(VkCommandBuffer cmd_buffer,
                             &material->texture_set, 0, nullptr);
 }
 
-void VulkanRHI::RenderPass(VkCommandBuffer                      cmd_buffer,
-                           const std::vector<vk::RenderObject>& renderables) { 
-    //Vec3f camPos = {0.f, -6.f, -10.f};
-    Vec3f camPos = cvars::GetVec3f("camera").value();
-
-    Mat4x4f view = Mat4x4f::Translation(camPos);
-    // camera projection
-    Mat4x4f projection =
-        Mat4x4f::Perspective(ToRadians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-    projection[1][1] *= -1;
+void VulkanRHI::RenderPass(VkCommandBuffer              cmd_buffer,
+                           std::shared_ptr<RenderScene> scene) { 
+    Mat4x4f view = scene->camera.view();
+    Mat4x4f projection = scene->camera.projection();
 
     auto& cam_allocation = frames_[frame_idx_].camera_buffer.allocation;
     vk::CameraData* cam_data = nullptr;
@@ -863,8 +865,8 @@ void VulkanRHI::RenderPass(VkCommandBuffer                      cmd_buffer,
     auto& mesh_allocation = frames_[frame_idx_].mesh_instance_buffer.allocation;
     vk::MeshInstanceData* mesh_data = nullptr;
     vmaMapMemory(allocator_, mesh_allocation, (void**)&mesh_data);
-    for (int i = 0; i < renderables.size(); i++) {
-        auto& object = renderables[i];
+    for (int i = 0; i < scene->renderables.size(); i++) {
+        auto& object = scene->renderables[i];
 
         Mat4x4f model = Mat4x4f::Translation(object.position) *
                         object.rotation.ToMatrix() *
@@ -875,8 +877,8 @@ void VulkanRHI::RenderPass(VkCommandBuffer                      cmd_buffer,
 
     vk::Mesh*     lastMesh     = nullptr;
     vk::Material* lastMaterial = nullptr;
-    for (int i = 0; i < renderables.size(); i++) {
-        auto& object = renderables[i];
+    for (int i = 0; i < scene->renderables.size(); i++) {
+        auto& object = scene->renderables[i];
 
         if (object.mesh == nullptr) {
             continue;
@@ -1037,7 +1039,7 @@ void VulkanRHI::UploadTexture(vk::Texture& texture, const void* pixels,
         VMA_MEMORY_USAGE_GPU_ONLY);
 
     // allocate temporary buffer for holding texture data to upload
-    VkDeviceSize        imageSize = width * height * channels;
+    VkDeviceSize        imageSize = (VkDeviceSize)width * height * channels;
     vk::AllocatedBuffer staging_buffer =
         CreateBuffer(imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                      VMA_MEMORY_USAGE_CPU_ONLY, false);
