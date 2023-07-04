@@ -1,40 +1,55 @@
 #include "render_system.h"
+
 #include "app/window.h"
+#include "pipeline/forward_pipeline.h"
 
 namespace lumi {
 
 void RenderSystem::Init(std::shared_ptr<Window> window) {
-    window_ = window;
+    rhi = std::make_shared<VulkanRHI>();
 
-    rhi_ = std::make_shared<VulkanRHI>();
-
-    rhi_->CreateSurface = [this](VkInstance instance, VkSurfaceKHR* p_surface) {
-        return window_->CreateSurface(instance, p_surface);
+    rhi->CreateSurface = [window](VkInstance    instance,
+                                   VkSurfaceKHR* p_surface) {
+        return window->CreateSurface(instance, p_surface);
     };
-    rhi_->GetWindowExtent = [this]() {
+    rhi->GetWindowExtent = [window]() {
         int width, height;
-        window_->GetWindowSize(width, height);
+        window->GetWindowSize(width, height);
         return VkExtent2D{(uint32_t)width, (uint32_t)height};
     };
-    rhi_->ImGuiWindowInit     = [this]() { window_->ImGuiWindowInit(); };
-    rhi_->ImGuiWindowShutdown = [this]() { window_->ImGuiWindowShutdown(); };
-    rhi_->ImGuiWindowNewFrame = [this]() { window_->ImGuiWindowNewFrame(); };
+    rhi->ImGuiWindowInit     = [window]() { window->ImGuiWindowInit(); };
+    rhi->ImGuiWindowShutdown = [window]() { window->ImGuiWindowShutdown(); };
+    rhi->ImGuiWindowNewFrame = [window]() { window->ImGuiWindowNewFrame(); };
+    rhi->Init();
 
-    rhi_->Init();
+    resource = std::make_shared<RenderResource>(rhi);
+    resource->Init();
 
-    scene_ = std::make_shared<RenderScene>(rhi_);
-    scene_->LoadScene();
+    pipeline = std::make_shared<ForwardPipeline>(rhi, resource);
+    pipeline->Init();
+
+    scene = std::make_shared<RenderScene>(rhi, resource);
+    scene->LoadScene();
 }
 
 void RenderSystem::Tick() { 
-    rhi_->Render(scene_); 
+    resource->ResetMappedPointers();
+
+    scene->UpdateVisibleObjects();
+
+    scene->UploadPerFrameResource();
+
+    pipeline->Render();
 }
 
 void RenderSystem::Finalize() {
-    rhi_->Finalize();
-    rhi_ = nullptr;
+    rhi->WaitForAllFrames();
 
-    window_ = nullptr;
+    pipeline->Finalize();
+
+    resource->Finalize();
+
+    rhi->Finalize();
 }
 
 }  // namespace lumi

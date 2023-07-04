@@ -3,7 +3,7 @@
 #
 cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 
-project(LumiEngine VERSION 0.0.2)
+project(LumiEngine VERSION 0.1.0)
 message(STATUS "${CMAKE_PROJECT_NAME} v${CMAKE_PROJECT_VERSION}")
 
 # =============== Prevent in-source builds ====================

@@ -25,35 +25,37 @@ target_compile_options(${LUMI_ENGINE_TARGET} PUBLIC
     $<$<NOT:$<C_COMPILER_ID:MSVC>>:-Wall>
     )
 
-# ============ Macros for target ============ 
+# ============ Macros for target ============
 # target_compile_definitions(
-#     ${LUMI_ENGINE_TARGET} PUBLIC 
-#     LUMI_VULKAN_SHADERS_DIR="${SHADERS_BINARY_DIR}/vulkan/")
+# ${LUMI_ENGINE_TARGET} PUBLIC
+# LUMI_VULKAN_SHADERS_DIR="${SHADERS_BINARY_DIR}/vulkan/")
 
-# ============  Includes  ============ 
-target_include_directories( ${LUMI_ENGINE_TARGET}
+# ============  Includes  ============
+target_include_directories(${LUMI_ENGINE_TARGET}
     PUBLIC $<BUILD_INTERFACE:${LUMI_SOURCE_DIR}>
     PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}>
     PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/glfw/include>
     PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/glm>
+    PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/rttr/src>
     PUBLIC $<BUILD_INTERFACE:${Vulkan_INCLUDE_DIRS}>
-    )
+)
 
 
 # ============ Link dependencies ============ 
 add_dependencies(${LUMI_ENGINE_TARGET}
     ${LUMI_SHADER_COMPILE})
 
-target_link_libraries( ${LUMI_ENGINE_TARGET} 
+target_link_libraries(${LUMI_ENGINE_TARGET}
     ${Vulkan_LIBRARIES}
     glfw
-    glm 
-    vkbootstrap 
+    glm
+    vkbootstrap
     vma
     imgui
     stb_image
     spdlog
     nlohmann
-    tiny_obj_loader 
-    )
+    tiny_obj_loader
+    rttr_core_lib
+)
     

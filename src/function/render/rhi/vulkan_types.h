@@ -1,22 +1,21 @@
 #pragma once
 
-#include "core/math.h"
 #include "core/hash.h"
-
-#include "vulkan/vulkan.h"
+#include "core/math.h"
 #include "vma/vk_mem_alloc.h"
+#include "vulkan/vulkan.h"
 
 namespace lumi {
 namespace vk {
 
 // class for destroying vulkan resources
-class DestructionQueue {
+class DestructorQueue {
 private:
     std::vector<std::function<void()>> destructors_{};
 
 public:
     void Push(std::function<void()>&& destructor) {
-        destructors_.emplace_back(destructor);
+        destructors_.emplace_back(std::move(destructor));
     }
 
     void Flush() {
@@ -28,19 +27,35 @@ public:
 };
 
 struct AllocatedBuffer {
-    VkBuffer      buffer{};
     VmaAllocation allocation{};
+    VkBuffer      buffer{};
 };
 
 struct AllocatedImage {
-    VkImage       image{};
     VmaAllocation allocation{};
+    VkImage       image{};
+    VkImageView   image_view{};
 };
 
-struct UploadContext {
-    VkCommandPool   command_pool{};
-    VkCommandBuffer command_buffer{};
-    VkFence         upload_fence{};
+struct Texture2D {
+    uint32_t           width{};
+    uint32_t           height{};
+    VkFormat           format{};
+    vk::AllocatedImage image{};
+};
+
+struct Texture2DCreateInfo {
+    uint32_t                 width{};
+    uint32_t                 height{};
+    VkFormat                 format{};
+    VkImageUsageFlags        image_usage{};
+    VmaMemoryUsage           memory_usage{};
+    VkImageAspectFlags       aspect_flags{};
+};
+
+struct DescriptorSet {
+    VkDescriptorSet       set{};
+    VkDescriptorSetLayout layout{};
 };
 
 struct VertexInputDescription {
@@ -63,10 +78,10 @@ struct Vertex {
     struct Hash {
         std::size_t operator()(const Vertex& v) const {
             std::size_t result = 0;
-            hash_combine<glm::vec3>(result, v.position);
-            hash_combine<glm::vec3>(result, v.normal);
-            hash_combine<glm::vec3>(result, v.color);
-            hash_combine<glm::vec2>(result, v.texcoord);
+            HashCombine<glm::vec3>(result, v.position);
+            HashCombine<glm::vec3>(result, v.normal);
+            HashCombine<glm::vec3>(result, v.color);
+            HashCombine<glm::vec2>(result, v.texcoord);
             return result;
         }
     };
@@ -110,95 +125,6 @@ struct Vertex {
         description.attributes.emplace_back(texcoordAttribute);
 
         return description;
-    }
-};
-
-struct Mesh {
-    using IndexType                           = uint32_t;
-    constexpr static VkIndexType kVkIndexType = VK_INDEX_TYPE_UINT32;
-
-    std::vector<Vertex>    vertices{};
-    std::vector<IndexType> indices{};
-    AllocatedBuffer        vertex_buffer{};
-    AllocatedBuffer        index_buffer{};
-};
-
-struct MeshPushConstants {
-    Vec4f   color{};
-    Mat4x4f model{};
-};
-
-struct Texture {
-    VkFormat       format{};
-    AllocatedImage image{};
-    VkImageView    image_view{};
-};
-
-struct Material {
-    VkPipeline       pipeline{};
-    VkPipelineLayout pipeline_layout{};
-    VkDescriptorSet  texture_set{};
-};
-
-struct CameraData {
-    Mat4x4f view{};
-    Mat4x4f proj{};
-    Mat4x4f proj_view{};
-};
-
-struct EnvLightingData {
-    Vec4f fog_color{};      // w is for exponent
-    Vec4f fog_distances{};  // x for min, y for max, zw unused.
-    Vec4f ambient_color{};
-    Vec4f sunlight_direction{};  // w for sun power
-    Vec4f sunlight_color{};
-};
-
-struct MeshInstanceData {
-    Mat4x4f model_matrix{};
-};
-
-struct FrameData {
-    VkCommandPool   command_pool{};
-    VkCommandBuffer main_command_buffer{};
-    VkFence         render_fence{};
-    VkSemaphore     render_semaphore{};
-    VkSemaphore     present_semaphore{};
-
-    AllocatedBuffer camera_buffer{};
-    AllocatedBuffer mesh_instance_buffer{};
-
-    VkDescriptorSet global_descriptor_set{};
-    VkDescriptorSet mesh_instance_descriptor_set{};
-};
-
-// TODO: move out of vk namespace
-struct RenderObject {
-    Mesh*      mesh     = nullptr;
-    Material*  material = nullptr;
-    Vec3f      position = Vec3f::kZero;
-    Quaternion rotation = Quaternion::kIdentity;
-    Vec3f      scale    = Vec3f::kUnitScale;
-};
-
-struct Camera {
-    Vec3f position   = Vec3f::kZero;
-    Vec3f eulers_deg = Vec3f::kZero;
-    float fovy_deg   = 70.f;
-    float aspect     = 1700.f / 900.f;
-    float near       = 0.1f;
-    float far        = 200.0f;
-
-    Mat4x4f rotation() const {
-        return Mat4x4f::Rotation(ToRadians(eulers_deg));
-    }
-
-    Mat4x4f view() const {
-        return rotation().Transpose() * Mat4x4f::Translation(-position);
-    }
-
-    Mat4x4f projection() const {
-        return Mat4x4f::Perspective(ToRadians(fovy_deg), aspect, near, far);
     }
 };
 

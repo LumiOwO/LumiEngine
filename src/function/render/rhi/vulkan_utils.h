@@ -8,13 +8,13 @@
 #include "vkbootstrap/VkBootstrap.h"
 #include "core/log.h"
 
-#define VK_CHECK(x)                                  \
-    do {                                             \
-        VkResult err = x;                            \
-        if (err) {                                   \
-            LOG_ERROR("Vulkan error {} in" #x, err); \
-            exit(1);                                 \
-        }                                            \
+#define VK_CHECK(x)                                   \
+    do {                                              \
+        VkResult err = x;                             \
+        if (err) {                                    \
+            LOG_ERROR("Vulkan error {} in " #x, err); \
+            exit(1);                                  \
+        }                                             \
     } while (0)
 
 namespace lumi {
@@ -238,85 +238,6 @@ BuildPipelineDepthStencilStateCreateInfo(bool bDepthTest, bool bDepthWrite,
     return info;
 }
 
-struct PipelineBuilder {
-    std::vector<VkPipelineShaderStageCreateInfo> shader_stages{};
-    VkPipelineVertexInputStateCreateInfo         vertex_input_info{};
-    VkPipelineInputAssemblyStateCreateInfo       input_assembly{};
-    VkViewport                                   viewport{};
-    VkRect2D                                     scissor{};
-    VkPipelineRasterizationStateCreateInfo       rasterizer{};
-    VkPipelineColorBlendAttachmentState          color_blend_attachment{};
-    std::vector<VkDynamicState>                  dynamic_states{};
-    VkPipelineMultisampleStateCreateInfo         multisample{};
-    VkPipelineLayout                             pipeline_layout{};
-    VkPipelineDepthStencilStateCreateInfo        depth_stencil{};
-
-    VkPipeline Build(VkDevice device, VkRenderPass render_pass) {
-        // make viewport state from our stored viewport and scissor.
-        // at the moment we won't support multiple viewports or scissors
-        VkPipelineViewportStateCreateInfo viewport_state{};
-        viewport_state.sType =
-            VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewport_state.pNext         = nullptr;
-        viewport_state.viewportCount = 1;
-        viewport_state.pViewports    = &viewport;
-        viewport_state.scissorCount  = 1;
-        viewport_state.pScissors     = &scissor;
-
-        // setup dummy color blending. We aren't using transparent objects yet
-        // the blending is just "no blend", but we do write to the color attachment
-        VkPipelineColorBlendStateCreateInfo color_blending{};
-        color_blending.sType =
-            VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        color_blending.pNext           = nullptr;
-        color_blending.logicOpEnable   = VK_FALSE;
-        color_blending.logicOp         = VK_LOGIC_OP_COPY;
-        color_blending.attachmentCount = 1;
-        color_blending.pAttachments    = &color_blend_attachment;
-
-        // set dynamic viewport
-        VkPipelineDynamicStateCreateInfo dynamic_info{};
-        dynamic_info.sType =
-            VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamic_info.pNext             = nullptr;
-        dynamic_info.flags             = 0;
-        dynamic_info.dynamicStateCount = (uint32_t)dynamic_states.size();
-        dynamic_info.pDynamicStates    = dynamic_states.data();
-
-        // build the actual pipeline
-        // we now use all of the info structs we have been writing 
-        // into this one to create the pipeline
-        VkGraphicsPipelineCreateInfo pipelineInfo{};
-        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.pNext = nullptr;
-        pipelineInfo.stageCount          = (uint32_t)shader_stages.size();
-        pipelineInfo.pStages             = shader_stages.data();
-        pipelineInfo.pVertexInputState   = &vertex_input_info;
-        pipelineInfo.pInputAssemblyState = &input_assembly;
-        pipelineInfo.pViewportState      = &viewport_state;
-        pipelineInfo.pRasterizationState = &rasterizer;
-        pipelineInfo.pMultisampleState   = &multisample;
-        pipelineInfo.pColorBlendState    = &color_blending;
-        pipelineInfo.pDynamicState       = &dynamic_info;
-        pipelineInfo.layout              = pipeline_layout;
-        pipelineInfo.renderPass          = render_pass;
-        pipelineInfo.subpass             = 0;
-        pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
-        pipelineInfo.pDepthStencilState  = &depth_stencil;
-
-        // it's easy to error out on create graphics pipeline, 
-        // so we handle it a bit better than the common VK_CHECK case
-        VkPipeline newPipeline;
-        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
-                                      nullptr, &newPipeline) != VK_SUCCESS) {
-            LOG_ERROR("Failed to create pipeline");
-            return VK_NULL_HANDLE;  // failed to create graphics pipeline
-        } else {
-            return newPipeline;
-        }
-    }
-};
-
 inline VkDescriptorSetLayoutBinding BuildDescriptorSetLayoutBinding(
     VkDescriptorType type, VkShaderStageFlags stageFlags, uint32_t binding) {
     VkDescriptorSetLayoutBinding setbind{};
@@ -369,6 +290,85 @@ inline VkWriteDescriptorSet BuildWriteDescriptorSet(
     write.pImageInfo      = imageInfo;
     return write;
 }
+
+struct PipelineBuilder {
+    std::vector<VkPipelineShaderStageCreateInfo> shader_stages{};
+    VkPipelineVertexInputStateCreateInfo         vertex_input_info{};
+    VkPipelineInputAssemblyStateCreateInfo       input_assembly{};
+    VkViewport                                   viewport{};
+    VkRect2D                                     scissor{};
+    VkPipelineRasterizationStateCreateInfo       rasterizer{};
+    VkPipelineColorBlendAttachmentState          color_blend_attachment{};
+    std::vector<VkDynamicState>                  dynamic_states{};
+    VkPipelineMultisampleStateCreateInfo         multisample{};
+    VkPipelineLayout                             pipeline_layout{};
+    VkPipelineDepthStencilStateCreateInfo        depth_stencil{};
+
+    VkPipeline Build(VkDevice device, VkRenderPass render_pass) {
+        // make viewport state from our stored viewport and scissor.
+        // at the moment we won't support multiple viewports or scissors
+        VkPipelineViewportStateCreateInfo viewport_state{};
+        viewport_state.sType =
+            VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewport_state.pNext         = nullptr;
+        viewport_state.viewportCount = 1;
+        viewport_state.pViewports    = &viewport;
+        viewport_state.scissorCount  = 1;
+        viewport_state.pScissors     = &scissor;
+
+        // setup dummy color blending. We aren't using transparent objects yet
+        // the blending is just "no blend", but we do write to the color attachment
+        VkPipelineColorBlendStateCreateInfo color_blending{};
+        color_blending.sType =
+            VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        color_blending.pNext           = nullptr;
+        color_blending.logicOpEnable   = VK_FALSE;
+        color_blending.logicOp         = VK_LOGIC_OP_COPY;
+        color_blending.attachmentCount = 1;
+        color_blending.pAttachments    = &color_blend_attachment;
+
+        // set dynamic viewport
+        VkPipelineDynamicStateCreateInfo dynamic_info{};
+        dynamic_info.sType =
+            VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamic_info.pNext             = nullptr;
+        dynamic_info.flags             = 0;
+        dynamic_info.dynamicStateCount = (uint32_t)dynamic_states.size();
+        dynamic_info.pDynamicStates    = dynamic_states.data();
+
+        // build the actual pipeline
+        // we now use all of the info structs we have been writing
+        // into this one to create the pipeline
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.pNext = nullptr;
+        pipelineInfo.stageCount          = (uint32_t)shader_stages.size();
+        pipelineInfo.pStages             = shader_stages.data();
+        pipelineInfo.pVertexInputState   = &vertex_input_info;
+        pipelineInfo.pInputAssemblyState = &input_assembly;
+        pipelineInfo.pViewportState      = &viewport_state;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState   = &multisample;
+        pipelineInfo.pColorBlendState    = &color_blending;
+        pipelineInfo.pDynamicState       = &dynamic_info;
+        pipelineInfo.layout              = pipeline_layout;
+        pipelineInfo.renderPass          = render_pass;
+        pipelineInfo.subpass             = 0;
+        pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
+        pipelineInfo.pDepthStencilState  = &depth_stencil;
+
+        // it's easy to error out on create graphics pipeline,
+        // so we handle it a bit better than the common VK_CHECK case
+        VkPipeline newPipeline;
+        if (vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
+                                      nullptr, &newPipeline) != VK_SUCCESS) {
+            LOG_ERROR("Failed to create pipeline");
+            return VK_NULL_HANDLE;  // failed to create graphics pipeline
+        } else {
+            return newPipeline;
+        }
+    }
+};
 
 }  // namespace vk
 }  // namespace lumi

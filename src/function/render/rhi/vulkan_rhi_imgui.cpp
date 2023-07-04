@@ -1,12 +1,11 @@
+#include "function/cvars/cvar_system.h"
 #include "imgui/backends/imgui_impl_vulkan.h"
 #include "imgui/imgui.h"
 #include "vulkan_rhi.h"
 
-#include "function/cvars/cvar_system.h"
-
 namespace lumi {
 
-void ImGuiSetStyle() {
+static void ImGuiSetStyle() {
     // Setup Dear ImGui context
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
@@ -16,7 +15,7 @@ void ImGuiSetStyle() {
     // Setup Dear ImGui style
     ImGui::StyleColorsDark();
     //ImGui::StyleColorsLight();
-    ImGuiStyle& style    = ImGui::GetStyle();
+    ImGuiStyle& style = ImGui::GetStyle();
     //LOG_DEBUG("{}, {}", style.ItemInnerSpacing.x, style.DisabledAlpha);
     style.FrameRounding    = 5.0f;
     style.WindowRounding   = 7.0f;
@@ -45,9 +44,10 @@ void ImGuiSetStyle() {
     //IM_ASSERT(font != NULL);}
 }
 
-void VulkanRHI::ImGuiInit() {
+void VulkanRHI::CreateImGuiContext(VkRenderPass render_pass,
+                                   uint32_t     subpass_idx) {
     // 1: create descriptor pool for IMGUI
-    // the size of the pool is very oversize, 
+    // the size of the pool is very oversize,
     // but it's copied from imgui demo itself.
     std::vector<VkDescriptorPoolSize> pool_sizes{
         {VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
@@ -70,14 +70,15 @@ void VulkanRHI::ImGuiInit() {
     pool_info.poolSizeCount = (uint32_t)pool_sizes.size();
     pool_info.pPoolSizes    = pool_sizes.data();
 
-    VkDescriptorPool imguiPool{};
-    VK_CHECK(vkCreateDescriptorPool(device_, &pool_info, nullptr, &imguiPool));
+    //VkDescriptorPool imguiPool{};
+    VK_CHECK(
+        vkCreateDescriptorPool(device_, &pool_info, nullptr, &imgui_pool_));
 
     // 2: initialize imgui library
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiSetStyle();
-    
+
     ImGuiWindowInit();
 
     ImGui_ImplVulkan_InitInfo init_info{};
@@ -85,11 +86,12 @@ void VulkanRHI::ImGuiInit() {
     init_info.PhysicalDevice = physical_device_;
     init_info.Device         = device_;
     init_info.Queue          = graphics_queue_;
-    init_info.DescriptorPool = imguiPool;
-    init_info.MinImageCount  = 3;
-    init_info.ImageCount     = 3;
+    init_info.DescriptorPool = imgui_pool_;
+    init_info.Subpass        = subpass_idx;
+    init_info.MinImageCount  = (uint32_t)swapchain_images_.size();
+    init_info.ImageCount     = (uint32_t)swapchain_images_.size();
     init_info.MSAASamples    = VK_SAMPLE_COUNT_1_BIT;
-    ImGui_ImplVulkan_Init(&init_info, render_pass_);
+    ImGui_ImplVulkan_Init(&init_info, render_pass);
 
     // execute a gpu command to upload imgui font textures
     ImmediateSubmit(
@@ -97,44 +99,13 @@ void VulkanRHI::ImGuiInit() {
 
     // clear font textures from cpu data
     ImGui_ImplVulkan_DestroyFontUploadObjects();
-
-    // add the destroy the imgui created structures
-    destruction_queue_default_.Push([this, imguiPool]() {
-        vkDestroyDescriptorPool(device_, imguiPool, nullptr);
-        ImGui_ImplVulkan_Shutdown();
-        ImGuiWindowShutdown();
-        ImGui::DestroyContext();
-    });
 }
 
-void VulkanRHI::GUIPass(VkCommandBuffer cmd_buffer) {
-    ImGui_ImplVulkan_NewFrame();
-    ImGuiWindowNewFrame();
-    ImGui::NewFrame();
-
-    ImGuiIO& io = ImGui::GetIO();
-
-    //ImGui::ShowDemoWindow();
-    const ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-    ImGui::SetNextWindowPos(
-        ImVec2(main_viewport->WorkPos.x + 75, main_viewport->WorkPos.y + 50),
-        ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(450, 750), ImGuiCond_FirstUseEver);
-
-#pragma region Main menu
-    ImGui::SetNextWindowCollapsed(false, ImGuiCond_Once);
-
-    char title[32];
-    sprintf_s(title, "Menu (FPS = %.1f)###menu", io.Framerate);
-    ImGui::Begin(title);
-
-    cvars::ImGuiRender();
-    
-    ImGui::End();
-#pragma endregion
-
-    ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd_buffer);
+void VulkanRHI::DestroyImGuiContext() {
+    vkDestroyDescriptorPool(device_, imgui_pool_, nullptr);
+    ImGui_ImplVulkan_Shutdown();
+    ImGuiWindowShutdown();
+    ImGui::DestroyContext();
 }
 
 }  // namespace lumi

@@ -92,6 +92,25 @@ if(NOT TARGET tiny_obj_loader)
         PROPERTY FOLDER thirdparty/tiny_obj_loader)
 endif()
 
+# rttr
+if(NOT TARGET rttr)
+    set(BUILD_RTTR_DYNAMIC OFF CACHE BOOL "" FORCE)
+    set(BUILD_WITH_RTTI OFF CACHE BOOL "" FORCE)
+    set(BUILD_STATIC ON CACHE BOOL "" FORCE)
+    set(BUILD_WITH_STATIC_RUNTIME_LIBS OFF CACHE BOOL "" FORCE)
+    set(BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+    set(BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_DOCUMENTATION OFF CACHE BOOL "" FORCE)
+    set(BUILD_INSTALLER OFF CACHE BOOL "" FORCE)
+    set(BUILD_PACKAGE OFF CACHE BOOL "" FORCE)
+    set(BUILD_WEBSITE_DOCU OFF CACHE BOOL "" FORCE)
+
+    add_subdirectory(rttr)
+    set_property(TARGET rttr_core_lib
+        PROPERTY FOLDER thirdparty/rttr)
+endif()
+
 # # Assimp
 # if(NOT TARGET assimp)
 #     set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)

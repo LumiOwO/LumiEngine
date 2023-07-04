@@ -6,10 +6,9 @@
 
 namespace lumi {
 
-void UserInput::Init(std::shared_ptr<RenderScene> scene,
-                     std::shared_ptr<Window>      window) {
-    scene_ = scene;
-
+UserInput::UserInput(std::shared_ptr<RenderScene> scene,
+                     std::shared_ptr<Window>      window)
+    : scene_(scene) {
     window->RegisterOnKeyFunc(  //
         [this](auto... params) { OnKey(params...); });
     window->RegisterOnMouseButtonFunc(
@@ -144,8 +143,8 @@ void UserInput::OnCursorPos(double xpos, double ypos) {
 
     if (pan_mode_) {
         float speed = cvars::GetFloat("view_speed.pan").value();
-        float dx    = float(last_x_ - xpos) * 0.01f * speed;
-        float dy    = float(ypos - last_y_) * 0.01f * speed;
+        float dx    = float(last_x_ - xpos) * 0.04f * speed;
+        float dy    = float(ypos - last_y_) * 0.04f * speed;
 
         auto& camera = scene_->camera;
         camera.position += Vec3f(dx, dy, 0);

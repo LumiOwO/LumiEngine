@@ -15,8 +15,7 @@ void Engine::Init() {
     render_system_->Init(window_);
 
     // Init user input
-    user_input_ = std::make_shared<UserInput>();
-    user_input_->Init(render_system_->scene(), window_);
+    user_input_ = std::make_shared<UserInput>(render_system_->scene, window_);
 
 }
 
@@ -57,10 +56,8 @@ void Engine::TickRender() {
 
 void Engine::Finalize() {
     render_system_->Finalize();
-    render_system_ = nullptr;
 
     window_->Finalize();
-    window_ = nullptr;
 
     cvars::SaveToDisk();
 }

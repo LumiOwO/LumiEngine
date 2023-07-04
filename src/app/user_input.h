@@ -20,7 +20,7 @@ private:
     double last_y_          = 0;
 
 public:
-    void Init(std::shared_ptr<RenderScene> scene,
+    UserInput(std::shared_ptr<RenderScene> scene,
               std::shared_ptr<Window>      window);
 
     void Tick(float dt);

@@ -7,9 +7,13 @@ namespace lumi {
 class RenderScene;
 
 class VulkanRHI {
+public:
+    constexpr static int      kFramesInFlight = 2;
+    constexpr static uint64_t kTimeout = 1000000000ui64;  // Timeout of 1 second
+
 private:
-    vk::DestructionQueue destruction_queue_default_{};
-    vk::DestructionQueue destruction_queue_swapchain_{};
+    vk::DestructorQueue dtor_queue_rhi_{};
+    vk::DestructorQueue dtor_queue_swapchain_{};
 
     VkInstance       instance_{};         // Vulkan library handle
     VkPhysicalDevice physical_device_{};  // GPU chosen as the default device
@@ -24,32 +28,58 @@ private:
 
     VkExtent2D               extent_{};
     VkSwapchainKHR           swapchain_{};
-    VkFormat                 swapchain_image_format_{};
+    uint32_t                 swapchain_image_idx_{};
     std::vector<VkImage>     swapchain_images_{};
     std::vector<VkImageView> swapchain_image_views_{};
-    vk::AllocatedImage       depth_image_{};
-    VkImageView              depth_image_view_{};
-    VkFormat                 depth_format_{};
+    VkFormat                 swapchain_image_format_{};
+    VkQueue                  graphics_queue_{};
+    uint32_t                 graphics_queue_family_{};
+    VkRenderPass             main_render_pass_{};
+    VkDescriptorPool         imgui_pool_{};
 
-    VkQueue         graphics_queue_{};         // queue we will submit to
-    uint32_t        graphics_queue_family_{};  // family of that queue
+    int frame_idx_ = 0;
+    struct {
+        VkCommandPool   command_pool{};
+        VkCommandBuffer main_command_buffer{};
+        VkFence         render_fence{};
+        VkSemaphore     render_semaphore{};
+        VkSemaphore     present_semaphore{};
+    } frames_[kFramesInFlight] = {};
 
-    constexpr static uint64_t kTimeout = 1000000000ui64;  // Timeout of 1 second
-    constexpr static int      kFramesInFlight          = 2;
-    vk::FrameData             frames_[kFramesInFlight] = {};
-    int                       frame_idx_               = 0;
-    
-    vk::AllocatedBuffer env_lighting_buffer_{};
+    struct {
+        VkCommandPool   command_pool{};
+        VkCommandBuffer command_buffer{};
+        VkFence         upload_fence{};
+    } upload_context_ = {};
 
-    VkRenderPass               render_pass_{};
-    std::vector<VkFramebuffer> frame_buffers_{};
+public:
+    VkDevice device() const { return device_; }
 
-    VkDescriptorPool      descriptor_pool_{};
-    VkDescriptorSetLayout global_set_layout_{};
-    VkDescriptorSetLayout mesh_instance_set_layout_{};
-    VkDescriptorSetLayout single_texture_set_layout_{};
+    int frame_idx() const { return frame_idx_; }
 
-    vk::UploadContext upload_context_{};
+    const VkExtent2D& extent() const { return extent_; }
+
+    VkFormat swapchain_image_format() const { return swapchain_image_format_; }
+
+    uint32_t swapchain_image_idx() const { return swapchain_image_idx_; }
+
+    const std::vector<VkImage>& swapchain_images() const {
+        return swapchain_images_;
+    }
+
+    const std::vector<VkImageView>& swapchain_image_views() const {
+        return swapchain_image_views_;
+    }
+
+    VkRenderPass main_render_pass() const { return main_render_pass_; }
+
+    void SetMainRenderPass(VkRenderPass render_pass) {
+        main_render_pass_ = render_pass;
+    }
+
+    VkCommandBuffer GetCurrentCommandBuffer() const {
+        return frames_[frame_idx_].main_command_buffer;
+    };
 
 public:
     using CreateSurfaceFunc =
@@ -65,82 +95,86 @@ public:
     ImGuiWindowInitFunc     ImGuiWindowInit{};
     ImGuiWindowShutdownFunc ImGuiWindowShutdown{};
     ImGuiWindowNewFrameFunc ImGuiWindowNewFrame{};
-    
+
     void Init();
 
     void Finalize();
 
-    // TODO: remove scene from rhi and make it a RenderPass class
-    void Render(std::shared_ptr<RenderScene> scene);
+    void RecreateSwapchain();
 
-    void UploadMesh(vk::Mesh& mesh);
+    void PushDestructor(std::function<void()>&& destructor);
 
-    void UploadTexture(vk::Texture& texture, const void* pixels, int width,
-                       int height, int channels);
+    void CreateImGuiContext(VkRenderPass render_pass, uint32_t subpass_idx);
 
-    // TODO: refactor material system
-    vk::Material CreateMaterial(const std::string& name, VkImageView temp);
+    void DestroyImGuiContext();
 
     void ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func);
 
-private:
-    void CreateVulkanInstance();
-    void CreateSwapchain();
-    void CreateCommands();
-    void CreateDefaultRenderPass();
-    void CreateFrameBuffers();
-    void CreateSyncStructures();
+    void WaitForCurrentFrame();
 
-    void CreateDescriptors();
+    void WaitForAllFrames();
 
-    void RecreateSwapChain();
+    void* MapMemory(vk::AllocatedBuffer* buffer);
 
-    void CmdBindPipeline(VkCommandBuffer cmd_buffer, vk::Material* material);
+    void UnmapMemory(vk::AllocatedBuffer* buffer);
 
-    void RenderPass(VkCommandBuffer              cmd_buffer,
-                    std::shared_ptr<RenderScene> scene);
-    void GUIPass(VkCommandBuffer cmd_buffer);
+    vk::AllocatedBuffer AllocateBuffer(
+        size_t                   alloc_size,    //
+        VkBufferUsageFlags       buffer_usage,  //
+        VmaMemoryUsage           memory_usage);
 
-    VkResult WaitForCurrentFrame();
+    void DestroyBuffer(vk::AllocatedBuffer* buffer);
 
-    void ImGuiInit();
+    void CopyBuffer(const void* src, vk::AllocatedBuffer* dst, size_t size,
+                    size_t offset = 0);
 
-    bool LoadShaderModule(const std::string& filepath,
-                          VkShaderModule*    out_shader_module);
+    void CopyBuffer(const vk::AllocatedBuffer* src, vk::AllocatedBuffer* dst,
+                    size_t size, size_t offset = 0);
 
-    void CopyBuffer(const void* src, vk::AllocatedBuffer dst, size_t size);
+    void AllocateTexture2D(vk::Texture2D*           texture,
+                           vk::Texture2DCreateInfo* info);
 
-    void CopyBuffer(const vk::AllocatedBuffer src, vk::AllocatedBuffer dst,
-                    size_t size);
+    void DestroyTexture2D(vk::Texture2D* texture);
 
-    vk::AllocatedBuffer CreateBuffer(size_t             alloc_size,
-                                     VkBufferUsageFlags buffer_usage,
-                                     VmaMemoryUsage     memory_usage,
-                                     bool               auto_destroy = true);
+    bool BeginRenderCommand();
 
-    void DestroyBuffer(vk::AllocatedBuffer buffer);
+    bool EndRenderCommand();
 
-    vk::AllocatedImage CreateImage2D(int               width,   //
-                                     int               height,  //
-                                     VkFormat          image_format,
-                                     VkImageUsageFlags image_usage,
-                                     VmaMemoryUsage    memory_usage,
-                                     bool              auto_destroy = true);
+    size_t PaddedSizeOf(size_t size, size_t min_alignment) {
+        if (min_alignment > 0) {
+            size = (size + min_alignment - 1) & ~(min_alignment - 1);
+        }
+        return size;
+    }
 
-    void DestroyImage(vk::AllocatedImage image);
+    size_t PaddedSizeOfUBO(size_t size) {
+        return PaddedSizeOf(
+            size, gpu_properties_.limits.minUniformBufferOffsetAlignment);
+    }
 
     template <typename T>
-    size_t PaddedSizeOf() {
-        // Calculate required alignment based on minimum device offset alignment
-        size_t minUboAlignment =
-            gpu_properties_.limits.minUniformBufferOffsetAlignment;
-        size_t alignedSize = sizeof(T);
-        if (minUboAlignment > 0) {
-            alignedSize =
-                (alignedSize + minUboAlignment - 1) & ~(minUboAlignment - 1);
-        }
-        return alignedSize;
+    size_t PaddedSizeOfUBO() {
+        return PaddedSizeOfUBO(sizeof(T));
     }
+
+    size_t PaddedSizeOfSSBO(size_t size) {
+        return PaddedSizeOf(
+            size, gpu_properties_.limits.minStorageBufferOffsetAlignment);
+    }
+
+    template <typename T>
+    size_t PaddedSizeOfSSBO() {
+        return PaddedSizeOfSSBO(sizeof(T));
+    }
+
+private:
+    void CreateVulkanInstance();
+
+    void CreateSwapchain();
+
+    void CreateCommands();
+
+    void CreateSyncStructures();
 };
 
 }  // namespace lumi

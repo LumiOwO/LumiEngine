@@ -1,6 +1,8 @@
 #pragma once
 
 #include "rhi/vulkan_rhi.h"
+#include "pipeline/render_pipeline.h"
+#include "render_resource.h"
 #include "render_scene.h"
 
 namespace lumi {
@@ -8,10 +10,11 @@ namespace lumi {
 class Window;
 
 class RenderSystem {
-private:
-    std::shared_ptr<Window>      window_{};
-    std::shared_ptr<VulkanRHI>   rhi_{};
-    std::shared_ptr<RenderScene> scene_{};
+public:
+    std::shared_ptr<VulkanRHI>      rhi{};
+    std::shared_ptr<RenderResource> resource{};
+    std::shared_ptr<RenderPipeline> pipeline{};
+    std::shared_ptr<RenderScene>    scene{};
 
 public:
     void Init(std::shared_ptr<Window> window);
@@ -19,8 +22,6 @@ public:
     void Tick();
 
     void Finalize();
-
-    std::shared_ptr<RenderScene> scene() { return scene_; }
 };
 
 }  // namespace lumi
