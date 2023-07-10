@@ -49,7 +49,6 @@ void MeshLightingSubpass::CmdRender(VkCommandBuffer cmd) {
 
             first_instance_idx += batch_size;
         }
-
     }
 
     // Upload from staging buffer to gpu storage buffer
@@ -57,7 +56,7 @@ void MeshLightingSubpass::CmdRender(VkCommandBuffer cmd) {
     rhi->CopyBuffer(
         &resource->per_visible.staging_buffer, &resource->per_visible.buffer,
         sizeof(PerVisibleBufferObject) * resource->visible_object_descs.size(),
-        resource->GetPerVisibleDynamicOffset());
+        resource->GetPerVisibleDynamicOffsets()[0]);
 }
 
 void MeshLightingSubpass::CmdBindMaterial(VkCommandBuffer cmd,
@@ -87,17 +86,17 @@ void MeshLightingSubpass::CmdBindMaterial(VkCommandBuffer cmd,
                             material->pipeline_layout, kPerMaterialSlot, 1,
                             &material->descriptor_set.set, 0, nullptr);
 
-    uint32_t per_frame_offset = resource->GetPerFrameDynamicOffset();
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            material->pipeline_layout, kPerFrameSlot, 1,
-                            &resource->per_frame.descriptor_set.set, 1,
-                            &per_frame_offset);
+    auto per_frame_offsets = resource->GetPerFrameDynamicOffsets();
+    vkCmdBindDescriptorSets(
+        cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, material->pipeline_layout,
+        kPerFrameSlot, 1, &resource->per_frame.descriptor_set.set,
+        (uint32_t)per_frame_offsets.size(), per_frame_offsets.data());
 
-    uint32_t per_visible_offset = resource->GetPerVisibleDynamicOffset();
-    vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            material->pipeline_layout, kPerVisibleSlot, 1,
-                            &resource->per_visible.descriptor_set.set, 1,
-                            &per_visible_offset);
+    auto per_visible_offsets = resource->GetPerVisibleDynamicOffsets();
+    vkCmdBindDescriptorSets(
+        cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, material->pipeline_layout,
+        kPerVisibleSlot, 1, &resource->per_visible.descriptor_set.set,
+        (uint32_t)per_visible_offsets.size(), per_visible_offsets.data());
 }
 
 }  // namespace lumi

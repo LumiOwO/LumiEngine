@@ -2,6 +2,7 @@
 
 #include "core/scope_guard.h"
 #include "material/pbr_material.h"
+#include "material/unlit_material.h"
 
 namespace lumi {
 
@@ -24,21 +25,15 @@ void RenderScene::LoadScene() {
     //    LOG_ERROR("Loading .png file failed");
     //}
 
-    // Create materials
+    //// Create materials
     //{
-    //    auto material =
-    //        (PBRMaterial *)resource->CreateMaterial("empire", "PBRMaterial");
-    //    material->diffuse_tex_name = "empire_diffuse";
+    //    auto material = (UnlitMaterial *)resource->CreateMaterial(
+    //        "empire", "UnlitMaterial");
+    //    material->base_color_tex_name = "empire_diffuse";
     //    material->Upload(resource.get());
     //}
 
-    //{
-    //    auto material =
-    //        (PBRMaterial *)resource->CreateMaterial("monkey", "PBRMaterial");
-    //    material->Upload(resource.get());
-    //}
-
-    //RenderObject& empire = renderables.emplace_back();
+    //RenderObject &empire = renderables.emplace_back();
     //empire.mesh_name     = "empire";
     //empire.material_name = "empire";
     //empire.position      = {5, -10, 0};
@@ -62,11 +57,16 @@ void RenderScene::LoadScene() {
     //(*material->params.data) = {};
     //material->Upload(resource.get());
 
-    RenderObject& helmet = renderables.emplace_back();
+    auto unlit =
+        (UnlitMaterial *)resource->CreateMaterial("unlit", "UnlitMaterial");
+    unlit->base_color_tex_name = "DamagedHelmet_tex_0";
+    unlit->Upload(resource.get());
+
+    RenderObject &helmet = renderables.emplace_back();
     helmet.mesh_name     = "DamagedHelmet";
     helmet.material_name = "DamagedHelmet_mat_0";
-
-    camera.position = {0, 0, -3};
+    //helmet.material_name = "unlit";
+    camera.position      = {0, 0, -3};
 }
 
 void RenderScene::UpdateVisibleObjects() {
@@ -84,16 +84,16 @@ void RenderScene::UpdateVisibleObjects() {
 void RenderScene::UploadPerFrameResource() {
     auto per_frame_buffer_object = resource->per_frame.object;
 
-    const Mat4x4f &view                    = camera.view();
-    const Mat4x4f &proj                    = camera.projection();
-    per_frame_buffer_object->view          = view;
-    per_frame_buffer_object->proj          = proj;
-    per_frame_buffer_object->proj_view     = proj * view;
-    per_frame_buffer_object->ambient_color = Color4f::kWhite;
+    const Mat4x4f &view                        = camera.view();
+    const Mat4x4f &proj                        = camera.projection();
+    per_frame_buffer_object->cam.view          = view;
+    per_frame_buffer_object->cam.proj          = proj;
+    per_frame_buffer_object->cam.proj_view     = proj * view;
+    per_frame_buffer_object->env.ambient_color = Color4f::kWhite;
 
     rhi->CopyBuffer(&resource->per_frame.staging_buffer,
                     &resource->per_frame.buffer, sizeof(PerFrameBufferObject),
-                    resource->GetPerFrameDynamicOffset());
+                    resource->GetPerFrameDynamicOffsets()[0]);
 }
 
 }  // namespace lumi

@@ -30,10 +30,13 @@ layout(set = 0, binding = 5) uniform _unused_name_per_material {
     vec4  emissive_factor;
 };
 
-layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame {
+layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame_camera {
     mat4 view;
     mat4 proj;
     mat4 proj_view;
+};
+
+layout(set = 1, binding = 1) readonly buffer _unused_name_per_frame_env {
     vec4 fog_color;      // w is for exponent
     vec4 fog_distances;  // x for min, y for max, zw unused.
     vec4 ambient_color;
@@ -43,6 +46,5 @@ layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame {
 
 void main() {
     vec3 color = texture(occlusion_tex, in_texcoord0).xyz;
-    float temp = alpha_cutoff * 2;
     out_color  = vec4(color * ambient_color.xyz, 1.0);
 }

@@ -7,8 +7,7 @@
 namespace tinygltf {
 class Model;
 class Node;
-}
-
+}  // namespace tinygltf
 
 namespace lumi {
 
@@ -31,7 +30,6 @@ struct Mesh {
 };
 
 struct RenderObject {
-    std::string object_name   = "";
     std::string mesh_name     = "";
     std::string material_name = "";
     Vec3f       position      = Vec3f::kZero;
@@ -45,16 +43,33 @@ struct RenderObjectDesc {
     Material*     material = nullptr;
 };
 
-struct PerFrameBufferObject {
-    Mat4x4f view{};
-    Mat4x4f proj{};
-    Mat4x4f proj_view{};
+enum PerFrameBindingSlot {
+    kPerFrameBindingCamera = 0,
+    kPerFrameBindingEnvironment,
 
-    Vec4f fog_color{};      // w is for exponent
-    Vec4f fog_distances{};  // x for min, y for max, zw unused.
-    Vec4f ambient_color{};
-    Vec4f sunlight_direction{};  // w for sun power
-    Vec4f sunlight_color{};
+    kPerFrameBindingCount
+};
+
+struct PerFrameBufferObject {
+    struct CameraData {
+        Mat4x4f view{};
+        Mat4x4f proj{};
+        Mat4x4f proj_view{};
+    } cam = {};
+
+    struct EnvironmentData {
+        Vec4f fog_color{};      // w is for exponent
+        Vec4f fog_distances{};  // x for min, y for max, zw unused.
+        Vec4f ambient_color{};
+        Vec4f sunlight_direction{};  // w for sun power
+        Vec4f sunlight_color{};
+    } env = {};
+};
+
+enum PerVisibleBindingSlot {
+    kPerVisibleBindingModelMatrix = 0,
+
+    kPerVisibleBindingCount
 };
 
 struct PerVisibleBufferObject {
@@ -113,9 +128,9 @@ public:
 
     void ResetMappedPointers();
 
-    uint32_t GetPerFrameDynamicOffset() const;
+    std::vector<uint32_t> GetPerFrameDynamicOffsets() const;
 
-    uint32_t GetPerVisibleDynamicOffset() const;
+    std::vector<uint32_t> GetPerVisibleDynamicOffsets() const;
 
     VkShaderModule GetShaderModule(const std::string& name, ShaderType type);
 

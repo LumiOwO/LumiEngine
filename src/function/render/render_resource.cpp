@@ -37,8 +37,11 @@ void RenderResource::Init() {
     // Per frame
     {
         // --- Resource buffer ---
-        size_t alloc_size = rhi->kFramesInFlight *
-                            rhi->PaddedSizeOfSSBO<PerFrameBufferObject>();
+        size_t cam_size =  //
+            rhi->PaddedSizeOfSSBO<PerFrameBufferObject::CameraData>();
+        size_t env_size =  //
+            rhi->PaddedSizeOfSSBO<PerFrameBufferObject::EnvironmentData>();
+        size_t alloc_size = rhi->kFramesInFlight * (cam_size + env_size);
         per_frame.buffer =
             rhi->AllocateBuffer(alloc_size,
                                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
@@ -63,9 +66,17 @@ void RenderResource::Init() {
         auto editor = EditDescriptorSet(&per_frame.descriptor_set);
 
         editor.BindBuffer(
-            0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+            kPerFrameBindingCamera,  //
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            per_frame.buffer.buffer, 0, sizeof(PerFrameBufferObject));
+            per_frame.buffer.buffer, 0,
+            sizeof(PerFrameBufferObject::CameraData));
+        editor.BindBuffer(
+            kPerFrameBindingEnvironment,  //
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            per_frame.buffer.buffer, 0,
+            sizeof(PerFrameBufferObject::EnvironmentData));
 
         editor.Execute();
     }
@@ -98,7 +109,8 @@ void RenderResource::Init() {
         // --- Build descriptor set ---
         auto editor = EditDescriptorSet(&per_visible.descriptor_set);
 
-        editor.BindBuffer(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+        editor.BindBuffer(kPerVisibleBindingModelMatrix,
+                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
                           VK_SHADER_STAGE_VERTEX_BIT, per_visible.buffer.buffer,
                           0,
                           sizeof(PerVisibleBufferObject) * kMaxVisibleObjects);
@@ -153,19 +165,26 @@ void RenderResource::ResetMappedPointers() {
                                     kMaxVisibleObjects));
 }
 
-uint32_t RenderResource::GetPerFrameDynamicOffset() const {
-    uint32_t perframe_offset =
-        (uint32_t)rhi->PaddedSizeOfSSBO<PerFrameBufferObject>() *
-        rhi->frame_idx();
-    return perframe_offset;
+std::vector<uint32_t> RenderResource::GetPerFrameDynamicOffsets() const {
+    auto res = std::vector<uint32_t>(kPerFrameBindingCount);
+
+    size_t cam_size =  //
+        rhi->PaddedSizeOfSSBO<PerFrameBufferObject::CameraData>();
+    size_t env_size =  //
+        rhi->PaddedSizeOfSSBO<PerFrameBufferObject::EnvironmentData>();
+
+    res[0] = (uint32_t)(cam_size + env_size) * rhi->frame_idx();
+    res[1] = res[0] + (uint32_t)cam_size;
+    return res;
 }
 
-uint32_t RenderResource::GetPerVisibleDynamicOffset() const {
-    uint32_t per_visible_offset =
-        (uint32_t)rhi->PaddedSizeOfSSBO(sizeof(PerVisibleBufferObject) *
-                                        kMaxVisibleObjects) *
-        rhi->frame_idx();
-    return per_visible_offset;
+std::vector<uint32_t> RenderResource::GetPerVisibleDynamicOffsets() const {
+    auto res = std::vector<uint32_t>(kPerVisibleBindingCount);
+
+    res[0] = (uint32_t)rhi->PaddedSizeOfSSBO(sizeof(PerVisibleBufferObject) *
+                                             kMaxVisibleObjects) *
+             rhi->frame_idx();
+    return res;
 }
 
 VkShaderModule RenderResource::GetShaderModule(const std::string &name,

@@ -1,5 +1,6 @@
 ## [v0.1.1] - 2023-xx-xx
 - Bug fix: DescriptorEditor image_info address error caused by adding elements to std::vector
+- Add unlit material
 
 ## [v0.1.0] - 2023-07-09
 - Refactor render system
