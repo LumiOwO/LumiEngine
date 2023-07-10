@@ -234,12 +234,13 @@ DescriptorEditor& DescriptorEditor::BindBuffer(
     return *this;
 }
 
-DescriptorEditor& DescriptorEditor::BindImage(uint32_t           binding,     //
-                                              VkDescriptorType   type,        //
-                                              VkShaderStageFlags stageFlags,  //
-                                              VkSampler          sampler,     //
-                                              VkImageView        imageView,   //
-                                              VkImageLayout      imageLayout) {
+DescriptorEditor& DescriptorEditor::BindImage(  //
+    uint32_t           binding,                 //
+    VkDescriptorType   type,                    //
+    VkShaderStageFlags stageFlags,              //
+    VkSampler          sampler,                 //
+    VkImageView        imageView,               //
+    VkImageLayout      imageLayout) {
 
     auto& layout_binding              = bindings_.emplace_back();
     layout_binding.descriptorCount    = 1;

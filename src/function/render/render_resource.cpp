@@ -713,7 +713,7 @@ void RenderResource::GLTFLoadMaterials(const std::string &name,
             material->base_color_tex_name =
                 name + "_tex_" +
                 std::to_string(mat.values["baseColorTexture"].TextureIndex());
-            material->params.texcoord_set_base_color =
+            material->params.data->texcoord_set_base_color =
                 mat.values["baseColorTexture"].TextureTexCoord();
         }
         if (mat.values.find("metallicRoughnessTexture") != mat.values.end()) {
@@ -721,20 +721,20 @@ void RenderResource::GLTFLoadMaterials(const std::string &name,
                 name + "_tex_" +
                 std::to_string(
                     mat.values["metallicRoughnessTexture"].TextureIndex());
-            material->params.texcoord_set_metallic_roughness =
+            material->params.data->texcoord_set_metallic_roughness =
                 mat.values["metallicRoughnessTexture"].TextureTexCoord();
         }
         if (mat.values.find("roughnessFactor") != mat.values.end()) {
-            material->params.roughness_factor =
+            material->params.data->roughness_factor =
                 static_cast<float>(mat.values["roughnessFactor"].Factor());
         }
         if (mat.values.find("metallicFactor") != mat.values.end()) {
-            material->params.metallic_factor =
+            material->params.data->metallic_factor =
                 static_cast<float>(mat.values["metallicFactor"].Factor());
         }
         if (mat.values.find("baseColorFactor") != mat.values.end()) {
             auto color = mat.values["baseColorFactor"].ColorFactor();
-            material->params.base_color_factor =
+            material->params.data->base_color_factor =
                 Vec4f(color[0], color[1], color[2], color[3]);
         }
         if (mat.additionalValues.find("normalTexture") !=
@@ -743,7 +743,7 @@ void RenderResource::GLTFLoadMaterials(const std::string &name,
                 name + "_tex_" +
                 std::to_string(
                     mat.additionalValues["normalTexture"].TextureIndex());
-            material->params.texcoord_set_normal =
+            material->params.data->texcoord_set_normal =
                 mat.additionalValues["normalTexture"].TextureTexCoord();
         }
         if (mat.additionalValues.find("emissiveTexture") !=
@@ -752,7 +752,7 @@ void RenderResource::GLTFLoadMaterials(const std::string &name,
                 name + "_tex_" +
                 std::to_string(
                     mat.additionalValues["emissiveTexture"].TextureIndex());
-            material->params.texcoord_set_emissive =
+            material->params.data->texcoord_set_emissive =
                 mat.additionalValues["emissiveTexture"].TextureTexCoord();
         }
         if (mat.additionalValues.find("occlusionTexture") !=
@@ -761,29 +761,30 @@ void RenderResource::GLTFLoadMaterials(const std::string &name,
                 name + "_tex_" +
                 std::to_string(
                     mat.additionalValues["occlusionTexture"].TextureIndex());
-            material->params.texcoord_set_occlusion =
+            material->params.data->texcoord_set_occlusion =
                 mat.additionalValues["occlusionTexture"].TextureTexCoord();
         }
         if (mat.additionalValues.find("alphaMode") !=
             mat.additionalValues.end()) {
             tinygltf::Parameter param = mat.additionalValues["alphaMode"];
             if (param.string_value == "BLEND") {
-                material->params.alpha_mode = PBRMaterial::kAlphaModeBlend;
+                material->params.data->alpha_mode =
+                    PBRMaterial::kAlphaModeBlend;
             }
             if (param.string_value == "MASK") {
-                material->params.alpha_mode   = PBRMaterial::kAlphaModeMask;
-                material->params.alpha_cutoff = 0.5f;
+                material->params.data->alpha_mode = PBRMaterial::kAlphaModeMask;
+                material->params.data->alpha_cutoff = 0.5f;
             }
         }
         if (mat.additionalValues.find("alphaCutoff") !=
             mat.additionalValues.end()) {
-            material->params.alpha_cutoff = static_cast<float>(
+            material->params.data->alpha_cutoff = static_cast<float>(
                 mat.additionalValues["alphaCutoff"].Factor());
         }
         if (mat.additionalValues.find("emissiveFactor") !=
             mat.additionalValues.end()) {
             auto color = mat.additionalValues["emissiveFactor"].ColorFactor();
-            material->params.emissive_factor =
+            material->params.data->emissive_factor =
                 Vec4f(color[0], color[1], color[2], 1.0f);
         }
 

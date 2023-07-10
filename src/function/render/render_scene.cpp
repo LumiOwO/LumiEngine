@@ -8,36 +8,35 @@ namespace lumi {
 void RenderScene::LoadScene() {
     // TODO: load from json file
 
-    if (!resource->CreateMeshFromObjFile("monkey",
-                                         "models/monkey_smooth.obj")) {
-        LOG_ERROR("Loading .obj file failed");
-    }
+    //if (!resource->CreateMeshFromObjFile("monkey",
+    //                                     "models/monkey_smooth.obj")) {
+    //    LOG_ERROR("Loading .obj file failed");
+    //}
 
-    if (!resource->CreateMeshFromObjFile(
-            "empire", "scenes/lost_empire/lost_empire.obj")) {
-        LOG_ERROR("Loading .obj file failed");
-    }
+    //if (!resource->CreateMeshFromObjFile(
+    //        "empire", "scenes/lost_empire/lost_empire.obj")) {
+    //    LOG_ERROR("Loading .obj file failed");
+    //}
 
-    // Load textures
-    if (!resource->CreateTexture2DFromFile(
-            "empire_diffuse", "scenes/lost_empire/lost_empire-RGBA.png")) {
-        LOG_ERROR("Loading .png file failed");
-    }
+    //// Load textures
+    //if (!resource->CreateTexture2DFromFile(
+    //        "empire_diffuse", "scenes/lost_empire/lost_empire-RGBA.png")) {
+    //    LOG_ERROR("Loading .png file failed");
+    //}
 
     // Create materials
-    // TODO: load from json file
-    {
-        auto material =
-            (PBRMaterial *)resource->CreateMaterial("empire", "PBRMaterial");
-        material->diffuse_tex_name = "empire_diffuse";
-        material->Upload(resource.get());
-    }
+    //{
+    //    auto material =
+    //        (PBRMaterial *)resource->CreateMaterial("empire", "PBRMaterial");
+    //    material->diffuse_tex_name = "empire_diffuse";
+    //    material->Upload(resource.get());
+    //}
 
-    {
-        auto material =
-            (PBRMaterial *)resource->CreateMaterial("monkey", "PBRMaterial");
-        material->Upload(resource.get());
-    }
+    //{
+    //    auto material =
+    //        (PBRMaterial *)resource->CreateMaterial("monkey", "PBRMaterial");
+    //    material->Upload(resource.get());
+    //}
 
     //RenderObject& empire = renderables.emplace_back();
     //empire.mesh_name     = "empire";
@@ -57,11 +56,6 @@ void RenderScene::LoadScene() {
     //}
 
     resource->LoadFromGLTFFile("scenes/DamagedHelmet/DamagedHelmet.gltf");
-
-    PBRMaterial *material =
-        (PBRMaterial *)resource->GetMaterial("DamagedHelmet_mat_0");
-    material->diffuse_tex_name = material->occlusion_tex_name;
-    material->Upload(resource.get());
 
     RenderObject& helmet = renderables.emplace_back();
     helmet.mesh_name     = "DamagedHelmet";

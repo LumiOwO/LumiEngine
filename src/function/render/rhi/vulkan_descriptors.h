@@ -109,8 +109,8 @@ public:
 private:
     std::vector<VkDescriptorSetLayoutBinding> bindings_{};
     std::vector<VkWriteDescriptorSet>         writes_{};
-    std::vector<VkDescriptorBufferInfo>       buffer_infos_{};
-    std::vector<VkDescriptorImageInfo>        image_infos_{};
+    std::list<VkDescriptorBufferInfo>         buffer_infos_{};
+    std::list<VkDescriptorImageInfo>          image_infos_{};
 
     DescriptorAllocator*   allocator_      = nullptr;
     DescriptorLayoutCache* cache_          = nullptr;

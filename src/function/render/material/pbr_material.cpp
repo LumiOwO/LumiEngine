@@ -5,6 +5,25 @@
 namespace lumi {
 
 void PBRMaterial::CreateDescriptorSet(RenderResource* resource) {
+    auto rhi = resource->rhi;
+
+    params.buffer = rhi->AllocateBuffer(
+        sizeof(Params),
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
+    params.staging_buffer =
+        rhi->AllocateBuffer(sizeof(Params), VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                            VMA_MEMORY_USAGE_CPU_ONLY);
+    params.data = (Params*)rhi->MapMemory(&params.staging_buffer);
+    resource->PushDestructor([this, rhi]() {
+        rhi->UnmapMemory(&params.staging_buffer);
+        rhi->DestroyBuffer(&params.staging_buffer);
+        rhi->DestroyBuffer(&params.buffer);
+    });
+
+    // init entire staging buffer
+    (*params.data) = {};
+
     EditDescriptorSet(resource, false);
 }
 
@@ -31,14 +50,13 @@ void PBRMaterial::CreatePipeline(RenderResource* resource,
         resource->per_visible.descriptor_set.layout,
     };
 
-    auto pipeline_layout_info = vk::BuildPipelineLayoutCreateInfo();
+    auto pipeline_layout_info           = vk::BuildPipelineLayoutCreateInfo();
     pipeline_layout_info.setLayoutCount = (uint32_t)set_layouts.size();
     pipeline_layout_info.pSetLayouts    = set_layouts.data();
 
     VK_CHECK(vkCreatePipelineLayout(device, &pipeline_layout_info, nullptr,
                                     &this->pipeline_layout));
     pipeline_builder.pipeline_layout = this->pipeline_layout;
-
 
     pipeline_builder.vertex_input_info = vk::BuildVertexInputStateCreateInfo();
 
@@ -87,18 +105,74 @@ void PBRMaterial::Upload(RenderResource* resource) {
 
 void PBRMaterial::EditDescriptorSet(RenderResource* resource,
                                     bool            update_only) {
+    auto editor = resource->EditDescriptorSet(&descriptor_set);
+    auto rhi    = resource->rhi;
+
     // Update textures
-    vk::Texture2D* diffuse_tex = resource->GetTexture2D(diffuse_tex_name);
-    if (diffuse_tex == nullptr) {
-        diffuse_tex = resource->GetTexture2D("white");
+    {
+        vk::Texture2D* texture = resource->GetTexture2D(base_color_tex_name);
+        if (texture == nullptr) {
+            texture = resource->GetTexture2D(kDefaultBaseColorTexName);
+        }
+        editor.BindImage(kBindingBaseColor,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, texture->sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    {
+        vk::Texture2D* texture =
+            resource->GetTexture2D(metallic_roughness_tex_name);
+        if (texture == nullptr) {
+            texture = resource->GetTexture2D(kDefaultMetallicRoughnessTexName);
+        }
+        editor.BindImage(kBindingMetallicRoughness,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, texture->sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    {
+        vk::Texture2D* texture = resource->GetTexture2D(normal_tex_name);
+        if (texture == nullptr) {
+            texture = resource->GetTexture2D(kDefaultNormalTexName);
+        }
+        editor.BindImage(kBindingNormal,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, texture->sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    {
+        vk::Texture2D* texture = resource->GetTexture2D(occlusion_tex_name);
+        if (texture == nullptr) {
+            texture = resource->GetTexture2D(kDefaultOcclusionTexName);
+        }
+        editor.BindImage(kBindingOcclusion,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, texture->sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    {
+        vk::Texture2D* texture = resource->GetTexture2D(emissive_tex_name);
+        if (texture == nullptr) {
+            texture = resource->GetTexture2D(kDefaultEmissiveTexName);
+        }
+        editor.BindImage(kBindingEmissive,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, texture->sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
-    resource->EditDescriptorSet(&descriptor_set)
-        .BindImage(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                   VK_SHADER_STAGE_FRAGMENT_BIT, diffuse_tex->sampler,
-                   diffuse_tex->image.image_view,
-                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        .Execute(update_only);
+    // Update buffer
+    rhi->CopyBuffer(&params.staging_buffer, &params.buffer, sizeof(Params));
+    editor.BindBuffer(kBindingParameters, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                      VK_SHADER_STAGE_FRAGMENT_BIT, params.buffer.buffer, 0,
+                      sizeof(Params));
+
+    editor.Execute(update_only);
 }
 
 }  // namespace lumi
