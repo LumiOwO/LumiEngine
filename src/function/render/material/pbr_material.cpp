@@ -34,12 +34,12 @@ void PBRMaterial::CreatePipeline(RenderResource* resource,
     vk::PipelineBuilder pipeline_builder{};
 
     VkShaderModule vert =
-        resource->CreateShaderModule("meshtriangle", kShaderTypeVertex);
+        resource->CreateShaderModule(kShaderName, kShaderTypeVertex);
     pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_VERTEX_BIT,
                                                vert));
     VkShaderModule frag =
-        resource->CreateShaderModule("meshtriangle", kShaderTypeFragment);
+        resource->CreateShaderModule(kShaderName, kShaderTypeFragment);
     pipeline_builder.shader_stages.emplace_back(
         vk::BuildPipelineShaderStageCreateInfo(VK_SHADER_STAGE_FRAGMENT_BIT,
                                                frag));

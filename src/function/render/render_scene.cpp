@@ -57,6 +57,11 @@ void RenderScene::LoadScene() {
 
     resource->LoadFromGLTFFile("scenes/DamagedHelmet/DamagedHelmet.gltf");
 
+    //auto material =
+    //    (PBRMaterial *)resource->GetMaterial("DamagedHelmet_mat_0");
+    //(*material->params.data) = {};
+    //material->Upload(resource.get());
+
     RenderObject& helmet = renderables.emplace_back();
     helmet.mesh_name     = "DamagedHelmet";
     helmet.material_name = "DamagedHelmet_mat_0";

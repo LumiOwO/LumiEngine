@@ -13,13 +13,21 @@ layout(set = 0, binding = 3) uniform sampler2D occlusion_tex;
 layout(set = 0, binding = 4) uniform sampler2D emissive_tex;
 
 layout(set = 0, binding = 5) uniform _unused_name_per_material {
+    uint texcoord_set_base_color;
+    uint texcoord_set_metallic_roughness;
+    uint texcoord_set_normal;
+    uint texcoord_set_occlusion;
+    uint texcoord_set_emissive;
+    uint _padding_texcoord_set_0;
+    uint _padding_texcoord_set_1;
+    uint _padding_texcoord_set_2;
+
     uint  alpha_mode;
     float alpha_cutoff;
     float metallic_factor;
     float roughness_factor;
     vec4  base_color_factor;
     vec4  emissive_factor;
-    uint  texcoord_sets[5];
 };
 
 layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame {
@@ -35,5 +43,6 @@ layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame {
 
 void main() {
     vec3 color = texture(occlusion_tex, in_texcoord0).xyz;
+    float temp = alpha_cutoff * 2;
     out_color  = vec4(color * ambient_color.xyz, 1.0);
 }
