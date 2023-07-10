@@ -3,10 +3,12 @@
 layout(location = 0) in vec3 in_position;
 layout(location = 1) in vec3 in_normal;
 layout(location = 2) in vec3 in_color;
-layout(location = 3) in vec2 in_texcoord;
+layout(location = 3) in vec2 in_texcoord0;
+layout(location = 4) in vec2 in_texcoord1;
 
 layout(location = 0) out vec3 out_color;
-layout(location = 1) out vec2 out_texcoord;
+layout(location = 1) out vec2 out_texcoord0;
+layout(location = 2) out vec2 out_texcoord1;
 
 layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame {
     mat4 view;
@@ -28,8 +30,9 @@ layout(set = 2, binding = 0) readonly buffer _unused_name_per_visible {
 };
 
 void main() {
-    mat4 model   = visible_objects[gl_InstanceIndex].model;
-    gl_Position  = proj_view * model * vec4(in_position, 1.0);
-    out_color    = in_color;
-    out_texcoord = in_texcoord;
+    mat4 model    = visible_objects[gl_InstanceIndex].model;
+    gl_Position   = proj_view * model * vec4(in_position, 1.0);
+    out_color     = in_color;
+    out_texcoord0 = in_texcoord0;
+    out_texcoord1 = in_texcoord1;
 }

@@ -32,12 +32,14 @@ target_compile_options(${LUMI_ENGINE_TARGET} PUBLIC
 
 # ============  Includes  ============
 target_include_directories(${LUMI_ENGINE_TARGET}
+    PUBLIC $<BUILD_INTERFACE:${Vulkan_INCLUDE_DIRS}>
     PUBLIC $<BUILD_INTERFACE:${LUMI_SOURCE_DIR}>
     PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}>
     PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/glfw/include>
     PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/glm>
+    PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/nlohmann>
+    PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/stb_image>
     PUBLIC $<BUILD_INTERFACE:${LUMI_THIRDPARTY_DIR}/rttr/src>
-    PUBLIC $<BUILD_INTERFACE:${Vulkan_INCLUDE_DIRS}>
 )
 
 
@@ -56,6 +58,7 @@ target_link_libraries(${LUMI_ENGINE_TARGET}
     spdlog
     nlohmann
     tiny_obj_loader
+    tinygltf
     rttr_core_lib
 )
     

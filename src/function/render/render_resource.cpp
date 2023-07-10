@@ -1,6 +1,7 @@
 #include "render_resource.h"
 
 #include "core/scope_guard.h"
+#include "material/pbr_material.h"
 
 #ifdef _WIN32
 #include <codeanalysis/warnings.h>
@@ -8,11 +9,16 @@
 #pragma warning(disable : ALL_CODE_ANALYSIS_WARNINGS)
 #endif
 
+#define TINYGLTF_IMPLEMENTATION
+#include "tinygltf/tiny_gltf.h"
+
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "tiny_obj_loader/tiny_obj_loader.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image/stb_image.h"
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image/stb_image_write.h"
 
 #ifdef _WIN32
 #pragma warning(pop)
@@ -130,19 +136,19 @@ void RenderResource::Init() {
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
 
-void RenderResource::PushDestructor(std::function<void()>&& destructor) {
+void RenderResource::PushDestructor(std::function<void()> &&destructor) {
     dtor_queue_resource_.Push(std::move(destructor));
 }
 
 void RenderResource::ResetMappedPointers() {
     int idx = rhi->frame_idx();
 
-    per_frame.object = reinterpret_cast<PerFrameBufferObject*>(
-        (char*)(per_frame.data) +
+    per_frame.object = reinterpret_cast<PerFrameBufferObject *>(
+        (char *)(per_frame.data) +
         idx * rhi->PaddedSizeOfSSBO<PerFrameBufferObject>());
 
-    per_visible.object = reinterpret_cast<PerVisibleBufferObject*>(
-        (char*)(per_visible.data) +
+    per_visible.object = reinterpret_cast<PerVisibleBufferObject *>(
+        (char *)(per_visible.data) +
         idx * rhi->PaddedSizeOfSSBO(sizeof(PerVisibleBufferObject) *
                                     kMaxVisibleObjects));
 }
@@ -162,7 +168,7 @@ uint32_t RenderResource::GetPerVisibleDynamicOffset() const {
     return per_visible_offset;
 }
 
-VkShaderModule RenderResource::GetShaderModule(const std::string& name,
+VkShaderModule RenderResource::GetShaderModule(const std::string &name,
                                                ShaderType         type) {
     auto it = shaders_[type].find(name);
     if (it == shaders_[type].end()) {
@@ -172,7 +178,7 @@ VkShaderModule RenderResource::GetShaderModule(const std::string& name,
     }
 }
 
-vk::Texture2D* RenderResource::GetTexture2D(const std::string& name) {
+vk::Texture2D *RenderResource::GetTexture2D(const std::string &name) {
     auto it = textures_.find(name);
     if (it == textures_.end()) {
         return nullptr;
@@ -181,7 +187,7 @@ vk::Texture2D* RenderResource::GetTexture2D(const std::string& name) {
     }
 }
 
-Material* RenderResource::GetMaterial(const std::string& name) {
+Material *RenderResource::GetMaterial(const std::string &name) {
     auto it = materials_.find(name);
     if (it == materials_.end()) {
         return nullptr;
@@ -190,7 +196,7 @@ Material* RenderResource::GetMaterial(const std::string& name) {
     }
 }
 
-Mesh* RenderResource::GetMesh(const std::string& name) {
+Mesh *RenderResource::GetMesh(const std::string &name) {
     auto it = meshes_.find(name);
     if (it == meshes_.end()) {
         return nullptr;
@@ -199,12 +205,12 @@ Mesh* RenderResource::GetMesh(const std::string& name) {
     }
 }
 
-VkShaderModule RenderResource::CreateShaderModule(const std::string& name,
+VkShaderModule RenderResource::CreateShaderModule(const std::string &name,
                                                   ShaderType         type) {
     VkShaderModule res = GetShaderModule(name, type);
     if (res) return res;
 
-    const char* postfix = "";
+    const char *postfix = "";
     switch (type) {
         case kShaderTypeVertex:
             postfix = ".vert.spv";
@@ -232,10 +238,10 @@ VkShaderModule RenderResource::CreateShaderModule(const std::string& name,
     return *p_shader;
 }
 
-Material* RenderResource::CreateMaterial(const std::string& name,
-                                         const std::string& type_name,
+Material *RenderResource::CreateMaterial(const std::string &name,
+                                         const std::string &type_name,
                                          VkRenderPass       render_pass) {
-    Material* res = GetMaterial(name);
+    Material *res = GetMaterial(name);
     if (res) {
         LOG_WARNING("Create material with an existed name {}", name);
         return res;
@@ -258,15 +264,15 @@ Material* RenderResource::CreateMaterial(const std::string& name,
     return material.get();
 }
 
-Mesh* RenderResource::CreateMeshFromObjFile(const std::string& name,
-                                            const fs::path&    filepath) {
-    Mesh* res = GetMesh(name);
+Mesh *RenderResource::CreateMeshFromObjFile(const std::string &name,
+                                            const fs::path    &filepath) {
+    Mesh *res = GetMesh(name);
     if (res) {
         LOG_WARNING("Create mesh with an existed name {}", name);
         return res;
     }
 
-    auto& absolute_path =
+    auto &absolute_path =
         filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
     auto in = std::ifstream(absolute_path);
 
@@ -287,14 +293,14 @@ Mesh* RenderResource::CreateMeshFromObjFile(const std::string& name,
         return nullptr;
     }
 
-    auto& mesh = meshes_[name];
+    auto &mesh = meshes_[name];
 
     auto vertex_hashmap =
         std::unordered_map<vk::Vertex, Mesh::IndexType, vk::Vertex::Hash>();
 
     // Loop over shapes
-    for (const auto& shape : shapes) {
-        for (const auto& idx : shape.mesh.indices) {
+    for (const auto &shape : shapes) {
+        for (const auto &idx : shape.mesh.indices) {
             // vertex position
             tinyobj::real_t vx = attrib.vertices[3LL * idx.vertex_index + 0];
             tinyobj::real_t vy = attrib.vertices[3LL * idx.vertex_index + 1];
@@ -313,17 +319,17 @@ Mesh* RenderResource::CreateMeshFromObjFile(const std::string& name,
 
             // copy it into our vertex
             vk::Vertex new_vert{};
-            new_vert.position.x = vx;
-            new_vert.position.y = vy;
-            new_vert.position.z = vz;
-            new_vert.normal.x   = nx;
-            new_vert.normal.y   = ny;
-            new_vert.normal.z   = nz;
-            new_vert.texcoord.x = tx;
-            new_vert.texcoord.y = 1.0f - ty;
-            new_vert.color.r    = r;
-            new_vert.color.g    = g;
-            new_vert.color.b    = b;
+            new_vert.position.x  = vx;
+            new_vert.position.y  = vy;
+            new_vert.position.z  = vz;
+            new_vert.normal.x    = nx;
+            new_vert.normal.y    = ny;
+            new_vert.normal.z    = nz;
+            new_vert.texcoord0.x = tx;
+            new_vert.texcoord0.y = 1.0f - ty;
+            new_vert.color.r     = r;
+            new_vert.color.g     = g;
+            new_vert.color.b     = b;
 
             auto it = vertex_hashmap.find(new_vert);
             if (it == vertex_hashmap.end()) {
@@ -340,19 +346,19 @@ Mesh* RenderResource::CreateMeshFromObjFile(const std::string& name,
     return &mesh;
 }
 
-vk::Texture2D* RenderResource::CreateTexture2DFromFile(
-    const std::string& name, const fs::path& filepath) {
+vk::Texture2D *RenderResource::CreateTexture2DFromFile(
+    const std::string &name, const fs::path &filepath) {
 
-    vk::Texture2D* res = GetTexture2D(name);
+    vk::Texture2D *res = GetTexture2D(name);
     if (res) {
         LOG_WARNING("Create texture with an existed name {}", name);
         return res;
     }
 
     int   texWidth, texHeight, texChannels;
-    auto& absolute_path =
+    auto &absolute_path =
         filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
-    stbi_uc* pixels = stbi_load(absolute_path.string().c_str(), &texWidth,
+    stbi_uc *pixels = stbi_load(absolute_path.string().c_str(), &texWidth,
                                 &texHeight, &texChannels, STBI_default);
     if (!pixels) {
         LOG_ERROR("Failed to load texture file {}", filepath);
@@ -386,34 +392,47 @@ vk::Texture2D* RenderResource::CreateTexture2DFromFile(
         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     info.memory_usage      = VMA_MEMORY_USAGE_GPU_ONLY;
     info.aspect_flags      = aspect;
-    vk::Texture2D* texture = CreateTexture2D(name, &info, pixels);
+    info.filter_mode       = VK_FILTER_NEAREST;
+    vk::Texture2D *texture = CreateTexture2D(name, &info, pixels);
 
     stbi_image_free(pixels);
     return texture;
 }
 
-vk::Texture2D* RenderResource::CreateTexture2D(
-    const std::string&       name,  //
-    vk::Texture2DCreateInfo* info,  //
-    const void*              pixels) {
+vk::Texture2D *RenderResource::CreateTexture2D(
+    const std::string       &name,  //
+    vk::Texture2DCreateInfo *info,  //
+    const void              *pixels) {
 
-    vk::Texture2D* res = GetTexture2D(name);
+    vk::Texture2D *res = GetTexture2D(name);
     if (res) {
         LOG_WARNING("Create texture with an existed name {}", name);
         return res;
     }
 
-    vk::Texture2D* texture = &textures_[name];
+    vk::Texture2D *texture = &textures_[name];
     rhi->AllocateTexture2D(texture, info);
     UploadTexture2D(texture, pixels);
+
+    switch (info->filter_mode) {
+        case VK_FILTER_NEAREST:
+            texture->sampler = sampler_nearest;
+            break;
+        case VK_FILTER_LINEAR:
+            texture->sampler = sampler_linear;
+            break;
+        default:
+            LOG_ERROR("Unsupported filter mode when creating texture {}", name);
+            break;
+    }
 
     dtor_queue_resource_.Push(
         [this, texture]() { rhi->DestroyTexture2D(texture); });
     return texture;
 }
 
-bool RenderResource::LoadVkShaderModule(const std::string& filepath,
-                                        VkShaderModule*    p_shader_module) {
+bool RenderResource::LoadVkShaderModule(const std::string &filepath,
+                                        VkShaderModule    *p_shader_module) {
     auto shader_file =
         std::ifstream(filepath, std::ios::ate | std::ios::binary);
     if (!shader_file.is_open()) {
@@ -431,7 +450,7 @@ bool RenderResource::LoadVkShaderModule(const std::string& filepath,
     createInfo.sType    = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.pNext    = nullptr;
     createInfo.codeSize = buffer.size();
-    createInfo.pCode    = (uint32_t*)buffer.data();
+    createInfo.pCode    = (uint32_t *)buffer.data();
 
     if (vkCreateShaderModule(rhi->device(), &createInfo, nullptr,
                              p_shader_module) != VK_SUCCESS) {
@@ -440,7 +459,7 @@ bool RenderResource::LoadVkShaderModule(const std::string& filepath,
     return true;
 }
 
-void RenderResource::UploadMesh(Mesh* mesh) {
+void RenderResource::UploadMesh(Mesh *mesh) {
     {
         // vertex buffer
         const size_t buffer_size = mesh->vertices.size() * sizeof(vk::Vertex);
@@ -491,8 +510,8 @@ void RenderResource::UploadMesh(Mesh* mesh) {
     }
 }
 
-void RenderResource::UploadTexture2D(vk::Texture2D* texture,
-                                     const void*    pixels) {
+void RenderResource::UploadTexture2D(vk::Texture2D *texture,
+                                     const void    *pixels) {
     VkDeviceSize channels = 0;
     switch (texture->format) {
         case VK_FORMAT_R8G8B8_SRGB:
@@ -577,6 +596,426 @@ void RenderResource::UploadTexture2D(vk::Texture2D* texture,
                              VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
                              nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
     });
+}
+
+void RenderResource::LoadFromGLTFFile(const fs::path &filepath) {
+    auto &absolute_path =
+        filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
+
+    tinygltf::Model    gltf_model;
+    tinygltf::TinyGLTF gltf_context;
+
+    std::string error;
+    std::string warning;
+
+    bool loaded =
+        (absolute_path.extension() == ".glb")
+            ? gltf_context.LoadBinaryFromFile(&gltf_model, &error, &warning,
+                                              absolute_path.string().c_str())
+            : gltf_context.LoadASCIIFromFile(&gltf_model, &error, &warning,
+                                             absolute_path.string().c_str());
+
+    if (!warning.empty()) {
+        LOG_WARNING(warning.c_str());
+    }
+    if (!loaded || !error.empty()) {
+        LOG_ERROR(warning.c_str());
+        return;
+    }
+
+    auto &name = absolute_path.stem().string();
+    GLTFLoadTextures(name, gltf_model);
+    GLTFLoadMaterials(name, gltf_model);
+
+    // Load Mesh
+    const tinygltf::Scene &scene =
+        gltf_model
+            .scenes[gltf_model.defaultScene > -1 ? gltf_model.defaultScene : 0];
+    auto &mesh = meshes_[name];
+    for (size_t i = 0; i < scene.nodes.size(); i++) {
+        const tinygltf::Node node = gltf_model.nodes[scene.nodes[i]];
+        GLTFLoadMesh(gltf_model, node, scene.nodes[i], &mesh);
+    }
+    UploadMesh(&mesh);
+}
+
+void RenderResource::GLTFLoadTextures(const std::string &name,
+                                      tinygltf::Model   &gltf_model) {
+    for (size_t i = 0; i < gltf_model.textures.size(); i++) {
+        tinygltf::Texture &tex   = gltf_model.textures[i];
+        tinygltf::Image   &image = gltf_model.images[tex.source];
+
+        vk::Texture2DCreateInfo info{};
+        info.width  = image.width;
+        info.height = image.height;
+        info.image_usage =
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
+        info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+
+        switch (image.component) {
+            case 1:
+                info.format = VK_FORMAT_R8_UNORM;
+                break;
+            case 3:
+                info.format = VK_FORMAT_R8G8B8_SRGB;
+                break;
+            case 4:
+                info.format = VK_FORMAT_R8G8B8A8_SRGB;
+                break;
+            default:
+                break;
+        }
+
+        if (tex.sampler == -1) {
+            // No sampler specified, use a default one
+            info.filter_mode = VK_FILTER_LINEAR;
+        } else {
+            tinygltf::Sampler &sampler = gltf_model.samplers[tex.sampler];
+            switch (sampler.minFilter) {
+                case -1:
+                case TINYGLTF_TEXTURE_FILTER_NEAREST:
+                case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+                case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+                    info.filter_mode = VK_FILTER_NEAREST;
+                    break;
+                case TINYGLTF_TEXTURE_FILTER_LINEAR:
+                case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+                case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+                    info.filter_mode = VK_FILTER_LINEAR;
+                    break;
+                default:
+                    LOG_ERROR(
+                        "Unknown filter mode when loading GLTF texture "
+                        "{}_tex_{}",
+                        name, i);
+                    break;
+            }
+        }
+
+        CreateTexture2D(name + "_tex_" + std::to_string(i), &info,
+                        image.image.data());
+    }
+}
+
+void RenderResource::GLTFLoadMaterials(const std::string &name,
+                                       tinygltf::Model   &gltf_model) {
+    for (size_t i = 0; i < gltf_model.materials.size(); i++) {
+        tinygltf::Material &mat = gltf_model.materials[i];
+
+        PBRMaterial *material = (PBRMaterial *)CreateMaterial(
+            name + "_mat_" + std::to_string(i), "PBRMaterial");
+
+        if (mat.doubleSided) {
+            material->cull_mode = VK_CULL_MODE_NONE;
+        }
+        if (mat.values.find("baseColorTexture") != mat.values.end()) {
+            material->base_color_tex_name =
+                name + "_tex_" +
+                std::to_string(mat.values["baseColorTexture"].TextureIndex());
+            material->params.texcoord_set_base_color =
+                mat.values["baseColorTexture"].TextureTexCoord();
+        }
+        if (mat.values.find("metallicRoughnessTexture") != mat.values.end()) {
+            material->metallic_roughness_tex_name =
+                name + "_tex_" +
+                std::to_string(
+                    mat.values["metallicRoughnessTexture"].TextureIndex());
+            material->params.texcoord_set_metallic_roughness =
+                mat.values["metallicRoughnessTexture"].TextureTexCoord();
+        }
+        if (mat.values.find("roughnessFactor") != mat.values.end()) {
+            material->params.roughness_factor =
+                static_cast<float>(mat.values["roughnessFactor"].Factor());
+        }
+        if (mat.values.find("metallicFactor") != mat.values.end()) {
+            material->params.metallic_factor =
+                static_cast<float>(mat.values["metallicFactor"].Factor());
+        }
+        if (mat.values.find("baseColorFactor") != mat.values.end()) {
+            auto color = mat.values["baseColorFactor"].ColorFactor();
+            material->params.base_color_factor =
+                Vec4f(color[0], color[1], color[2], color[3]);
+        }
+        if (mat.additionalValues.find("normalTexture") !=
+            mat.additionalValues.end()) {
+            material->normal_tex_name =
+                name + "_tex_" +
+                std::to_string(
+                    mat.additionalValues["normalTexture"].TextureIndex());
+            material->params.texcoord_set_normal =
+                mat.additionalValues["normalTexture"].TextureTexCoord();
+        }
+        if (mat.additionalValues.find("emissiveTexture") !=
+            mat.additionalValues.end()) {
+            material->emissive_tex_name =
+                name + "_tex_" +
+                std::to_string(
+                    mat.additionalValues["emissiveTexture"].TextureIndex());
+            material->params.texcoord_set_emissive =
+                mat.additionalValues["emissiveTexture"].TextureTexCoord();
+        }
+        if (mat.additionalValues.find("occlusionTexture") !=
+            mat.additionalValues.end()) {
+            material->occlusion_tex_name =
+                name + "_tex_" +
+                std::to_string(
+                    mat.additionalValues["occlusionTexture"].TextureIndex());
+            material->params.texcoord_set_occlusion =
+                mat.additionalValues["occlusionTexture"].TextureTexCoord();
+        }
+        if (mat.additionalValues.find("alphaMode") !=
+            mat.additionalValues.end()) {
+            tinygltf::Parameter param = mat.additionalValues["alphaMode"];
+            if (param.string_value == "BLEND") {
+                material->params.alpha_mode = PBRMaterial::kAlphaModeBlend;
+            }
+            if (param.string_value == "MASK") {
+                material->params.alpha_mode   = PBRMaterial::kAlphaModeMask;
+                material->params.alpha_cutoff = 0.5f;
+            }
+        }
+        if (mat.additionalValues.find("alphaCutoff") !=
+            mat.additionalValues.end()) {
+            material->params.alpha_cutoff = static_cast<float>(
+                mat.additionalValues["alphaCutoff"].Factor());
+        }
+        if (mat.additionalValues.find("emissiveFactor") !=
+            mat.additionalValues.end()) {
+            auto color = mat.additionalValues["emissiveFactor"].ColorFactor();
+            material->params.emissive_factor =
+                Vec4f(color[0], color[1], color[2], 1.0f);
+        }
+
+        material->Upload(this);
+    }
+}
+
+void RenderResource::GLTFGetMeshProperties(const tinygltf::Model &gltf_model,
+                                           const tinygltf::Node  &gltf_node,
+                                           size_t                &vertex_count,
+                                           size_t                &index_count) {
+
+    if (gltf_node.children.size() > 0) {
+        for (size_t i = 0; i < gltf_node.children.size(); i++) {
+            GLTFGetMeshProperties(gltf_model,
+                                  gltf_model.nodes[gltf_node.children[i]],
+                                  vertex_count, index_count);
+        }
+    }
+
+    if (gltf_node.mesh > -1) {
+        const tinygltf::Mesh mesh = gltf_model.meshes[gltf_node.mesh];
+        for (size_t i = 0; i < mesh.primitives.size(); i++) {
+            auto &primitive = mesh.primitives[i];
+            vertex_count +=
+                gltf_model
+                    .accessors[primitive.attributes.find("POSITION")->second]
+                    .count;
+            if (primitive.indices > -1) {
+                index_count += gltf_model.accessors[primitive.indices].count;
+            }
+        }
+    }
+}
+
+void RenderResource::GLTFLoadMesh(const tinygltf::Model &model,
+                                  const tinygltf::Node  &node,
+                                  uint32_t node_index, Mesh *mesh) {
+
+    // Node with children
+    if (node.children.size() > 0) {
+        for (size_t i = 0; i < node.children.size(); i++) {
+            GLTFLoadMesh(model, model.nodes[node.children[i]], node.children[i],
+                         mesh);
+        }
+    }
+    if (node.mesh == -1) return;
+
+    // Node contains mesh data
+    const tinygltf::Mesh gltf_mesh = model.meshes[node.mesh];
+    for (size_t j = 0; j < gltf_mesh.primitives.size(); j++) {
+        auto &primitive = gltf_mesh.primitives[j];
+
+        uint32_t  vertexStart = static_cast<uint32_t>(mesh->vertices.size());
+        uint32_t  indexStart  = static_cast<uint32_t>(mesh->indices.size());
+        uint32_t  indexCount  = 0;
+        uint32_t  vertexCount = 0;
+        glm::vec3 posMin{};
+        glm::vec3 posMax{};
+        bool      hasIndices = primitive.indices > -1;
+
+        // Vertices
+        const float *bufferPos          = nullptr;
+        const float *bufferNormals      = nullptr;
+        const float *bufferTexCoordSet0 = nullptr;
+        const float *bufferTexCoordSet1 = nullptr;
+        const float *bufferColorSet0    = nullptr;
+        const void  *bufferJoints       = nullptr;
+        const float *bufferWeights      = nullptr;
+
+        int posByteStride;
+        int normByteStride;
+        int uv0ByteStride;
+        int uv1ByteStride;
+        int color0ByteStride;
+        int jointByteStride;
+        int weightByteStride;
+
+        int jointComponentType;
+
+        // Position attribute is required
+        LOG_ASSERT(primitive.attributes.find("POSITION") !=
+                   primitive.attributes.end());
+
+        const tinygltf::Accessor &posAccessor =
+            model.accessors[primitive.attributes.find("POSITION")->second];
+        const tinygltf::BufferView &posView =
+            model.bufferViews[posAccessor.bufferView];
+        bufferPos = reinterpret_cast<const float *>(
+            &(model.buffers[posView.buffer]
+                  .data[posAccessor.byteOffset + posView.byteOffset]));
+        posMin      = Vec3f(posAccessor.minValues[0], posAccessor.minValues[1],
+                            posAccessor.minValues[2]);
+        posMax      = Vec3f(posAccessor.maxValues[0], posAccessor.maxValues[1],
+                            posAccessor.maxValues[2]);
+        vertexCount = static_cast<uint32_t>(posAccessor.count);
+        posByteStride =
+            posAccessor.ByteStride(posView)
+                ? (posAccessor.ByteStride(posView) / sizeof(float))
+                : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
+
+        // Normals
+        if (primitive.attributes.find("NORMAL") != primitive.attributes.end()) {
+            const tinygltf::Accessor &normAccessor =
+                model.accessors[primitive.attributes.find("NORMAL")->second];
+            const tinygltf::BufferView &normView =
+                model.bufferViews[normAccessor.bufferView];
+            bufferNormals = reinterpret_cast<const float *>(
+                &(model.buffers[normView.buffer]
+                      .data[normAccessor.byteOffset + normView.byteOffset]));
+            normByteStride =
+                normAccessor.ByteStride(normView)
+                    ? (normAccessor.ByteStride(normView) / sizeof(float))
+                    : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
+        }
+
+        // UVs
+        if (primitive.attributes.find("TEXCOORD_0") !=
+            primitive.attributes.end()) {
+            const tinygltf::Accessor &uvAccessor =
+                model
+                    .accessors[primitive.attributes.find("TEXCOORD_0")->second];
+            const tinygltf::BufferView &uvView =
+                model.bufferViews[uvAccessor.bufferView];
+            bufferTexCoordSet0 = reinterpret_cast<const float *>(
+                &(model.buffers[uvView.buffer]
+                      .data[uvAccessor.byteOffset + uvView.byteOffset]));
+            uv0ByteStride =
+                uvAccessor.ByteStride(uvView)
+                    ? (uvAccessor.ByteStride(uvView) / sizeof(float))
+                    : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+        }
+        if (primitive.attributes.find("TEXCOORD_1") !=
+            primitive.attributes.end()) {
+            const tinygltf::Accessor &uvAccessor =
+                model
+                    .accessors[primitive.attributes.find("TEXCOORD_1")->second];
+            const tinygltf::BufferView &uvView =
+                model.bufferViews[uvAccessor.bufferView];
+            bufferTexCoordSet1 = reinterpret_cast<const float *>(
+                &(model.buffers[uvView.buffer]
+                      .data[uvAccessor.byteOffset + uvView.byteOffset]));
+            uv1ByteStride =
+                uvAccessor.ByteStride(uvView)
+                    ? (uvAccessor.ByteStride(uvView) / sizeof(float))
+                    : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC2);
+        }
+
+        // Vertex colors
+        if (primitive.attributes.find("COLOR_0") !=
+            primitive.attributes.end()) {
+            const tinygltf::Accessor &accessor =
+                model.accessors[primitive.attributes.find("COLOR_0")->second];
+            const tinygltf::BufferView &view =
+                model.bufferViews[accessor.bufferView];
+            bufferColorSet0 = reinterpret_cast<const float *>(
+                &(model.buffers[view.buffer]
+                      .data[accessor.byteOffset + view.byteOffset]));
+            color0ByteStride =
+                accessor.ByteStride(view)
+                    ? (accessor.ByteStride(view) / sizeof(float))
+                    : tinygltf::GetNumComponentsInType(TINYGLTF_TYPE_VEC3);
+        }
+
+        for (size_t v = 0; v < posAccessor.count; v++) {
+            auto &vert = mesh->vertices.emplace_back();
+
+            auto pos      = &bufferPos[v * posByteStride];
+            vert.position = Vec3f(pos[0], pos[1], pos[2]);
+
+            if (bufferNormals) {
+                auto normal = &bufferNormals[v * normByteStride];
+                vert.normal = Vec3f(normal[0], normal[1], normal[2]);
+            }
+
+            if (bufferColorSet0) {
+                auto color = &bufferColorSet0[v * color0ByteStride];
+                vert.color = Vec3f(color[0], color[1], color[2]);
+            }
+
+            if (bufferTexCoordSet0) {
+                auto uv0       = &bufferTexCoordSet0[v * uv0ByteStride];
+                vert.texcoord0 = Vec2f(uv0[0], uv0[1]);
+            }
+
+            if (bufferTexCoordSet1) {
+                auto uv1       = &bufferTexCoordSet1[v * uv1ByteStride];
+                vert.texcoord1 = Vec2f(uv1[0], uv1[1]);
+            }
+        }
+
+        // Indices
+        if (!hasIndices) continue;
+
+        const tinygltf::Accessor &accessor =
+            model.accessors[primitive.indices > -1 ? primitive.indices : 0];
+        const tinygltf::BufferView &bufferView =
+            model.bufferViews[accessor.bufferView];
+        const tinygltf::Buffer &buffer = model.buffers[bufferView.buffer];
+
+        indexCount = static_cast<uint32_t>(accessor.count);
+        const void *dataPtr =
+            &(buffer.data[accessor.byteOffset + bufferView.byteOffset]);
+
+        switch (accessor.componentType) {
+            case TINYGLTF_PARAMETER_TYPE_UNSIGNED_INT: {
+                const uint32_t *buf = static_cast<const uint32_t *>(dataPtr);
+                for (size_t index = 0; index < accessor.count; index++) {
+                    mesh->indices.emplace_back(buf[index] + vertexStart);
+                }
+                break;
+            }
+            case TINYGLTF_PARAMETER_TYPE_UNSIGNED_SHORT: {
+                const uint16_t *buf = static_cast<const uint16_t *>(dataPtr);
+                for (size_t index = 0; index < accessor.count; index++) {
+                    mesh->indices.emplace_back(buf[index] + vertexStart);
+                }
+                break;
+            }
+            case TINYGLTF_PARAMETER_TYPE_UNSIGNED_BYTE: {
+                const uint8_t *buf = static_cast<const uint8_t *>(dataPtr);
+                for (size_t index = 0; index < accessor.count; index++) {
+                    mesh->indices.emplace_back(buf[index] + vertexStart);
+                }
+                break;
+            }
+            default:
+                LOG_ERROR("Index component type {} not supported",
+                          accessor.componentType);
+                return;
+        }
+    }
 }
 
 }  // namespace lumi

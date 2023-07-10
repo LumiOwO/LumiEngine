@@ -11,7 +11,7 @@
   "view_speed": {
     "move": {
       "#min": 0.25,
-      "#value": 1.5
+      "#value": 0.5
     },
     "pan": {
       "#max": 2.0,

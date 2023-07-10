@@ -29,14 +29,4 @@ struct Material {
     virtual void Upload(RenderResource* resource) = 0;
 };
 
-
-//struct TestMaterial : public Material {
-//    struct Param {
-//        Vec4f color = Vec4f::kZero;
-//    } params = {};
-//    vk::AllocatedBuffer buffer{};
-//
-//    std::string texture_name = "";
-//};
-
 }  // namespace lumi

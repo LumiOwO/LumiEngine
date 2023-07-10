@@ -4,6 +4,12 @@
 #include "rhi/vulkan_descriptors.h"
 #include "rhi/vulkan_rhi.h"
 
+namespace tinygltf {
+class Model;
+class Node;
+}
+
+
 namespace lumi {
 
 enum ShaderType {
@@ -25,6 +31,7 @@ struct Mesh {
 };
 
 struct RenderObject {
+    std::string object_name   = "";
     std::string mesh_name     = "";
     std::string material_name = "";
     Vec3f       position      = Vec3f::kZero;
@@ -139,6 +146,8 @@ public:
             &descriptor_allocator_, &descriptor_layout_cache_, descriptor_set);
     }
 
+    void LoadFromGLTFFile(const fs::path& filepath);
+
 private:
     bool LoadVkShaderModule(const std::string& filepath,
                             VkShaderModule*    p_shader_module);
@@ -146,6 +155,18 @@ private:
     void UploadMesh(Mesh* mesh);
 
     void UploadTexture2D(vk::Texture2D* texture, const void* pixels);
+
+    void GLTFLoadTextures(const std::string& name, tinygltf::Model& gltf_model);
+
+    void GLTFLoadMaterials(const std::string& name,
+                           tinygltf::Model&   gltf_model);
+
+    void GLTFGetMeshProperties(const tinygltf::Model& gltf_model,
+                               const tinygltf::Node&  gltf_node,
+                               size_t& vertex_count, size_t& index_count);
+
+    void GLTFLoadMesh(const tinygltf::Model& model, const tinygltf::Node& node,
+                      uint32_t node_index, Mesh* mesh);
 };
 
 }  // namespace lumi

@@ -131,6 +131,7 @@ public:
     void CopyBuffer(const vk::AllocatedBuffer* src, vk::AllocatedBuffer* dst,
                     size_t size, size_t offset = 0);
 
+    // Allocate VkImage & VkImageView, VkSampler is not accessed
     void AllocateTexture2D(vk::Texture2D*           texture,
                            vk::Texture2DCreateInfo* info);
 

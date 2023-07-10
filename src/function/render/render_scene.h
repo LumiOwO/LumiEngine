@@ -44,7 +44,6 @@ public:
     void UpdateVisibleObjects();
 
     void UploadPerFrameResource();
-
 };
 
 }  // namespace lumi

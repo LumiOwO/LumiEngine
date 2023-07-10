@@ -42,15 +42,17 @@ struct Texture2D {
     uint32_t           height{};
     VkFormat           format{};
     vk::AllocatedImage image{};
+    VkSampler          sampler{};
 };
 
 struct Texture2DCreateInfo {
-    uint32_t                 width{};
-    uint32_t                 height{};
-    VkFormat                 format{};
-    VkImageUsageFlags        image_usage{};
-    VmaMemoryUsage           memory_usage{};
-    VkImageAspectFlags       aspect_flags{};
+    uint32_t           width{};
+    uint32_t           height{};
+    VkFormat           format{};
+    VkImageUsageFlags  image_usage{};
+    VmaMemoryUsage     memory_usage{};
+    VkImageAspectFlags aspect_flags{};
+    VkFilter           filter_mode{VK_FILTER_NEAREST};
 };
 
 struct DescriptorSet {
@@ -65,14 +67,16 @@ struct VertexInputDescription {
 };
 
 struct Vertex {
-    Vec3f position{};
-    Vec3f normal{};
-    Vec3f color{};
-    Vec2f texcoord{};
+    Vec3f position  = Vec3f::kZero;
+    Vec3f normal    = Vec3f::kZero;
+    Vec3f color     = Vec3f::kWhite;
+    Vec2f texcoord0 = Vec2f::kZero;
+    Vec2f texcoord1 = Vec2f::kZero;
 
     bool operator==(const Vertex& rhs) const {
         return position == rhs.position && normal == rhs.normal &&
-               color == rhs.color && texcoord == rhs.texcoord;
+               color == rhs.color && texcoord0 == rhs.texcoord0 &&
+               texcoord1 == rhs.texcoord1;
     }
 
     struct Hash {
@@ -81,7 +85,8 @@ struct Vertex {
             HashCombine<glm::vec3>(result, v.position);
             HashCombine<glm::vec3>(result, v.normal);
             HashCombine<glm::vec3>(result, v.color);
-            HashCombine<glm::vec2>(result, v.texcoord);
+            HashCombine<glm::vec2>(result, v.texcoord0);
+            HashCombine<glm::vec2>(result, v.texcoord1);
             return result;
         }
     };
@@ -117,12 +122,19 @@ struct Vertex {
         colorAttribute.offset   = offsetof(Vertex, color);
         description.attributes.emplace_back(colorAttribute);
 
-        VkVertexInputAttributeDescription texcoordAttribute{};
-        texcoordAttribute.binding  = 0;
-        texcoordAttribute.location = 3;
-        texcoordAttribute.format   = VK_FORMAT_R32G32_SFLOAT;
-        texcoordAttribute.offset   = offsetof(Vertex, texcoord);
-        description.attributes.emplace_back(texcoordAttribute);
+        VkVertexInputAttributeDescription texcoordAttribute0{};
+        texcoordAttribute0.binding  = 0;
+        texcoordAttribute0.location = 3;
+        texcoordAttribute0.format   = VK_FORMAT_R32G32_SFLOAT;
+        texcoordAttribute0.offset   = offsetof(Vertex, texcoord0);
+        description.attributes.emplace_back(texcoordAttribute0);
+
+        VkVertexInputAttributeDescription texcoordAttribute1{};
+        texcoordAttribute1.binding  = 0;
+        texcoordAttribute1.location = 4;
+        texcoordAttribute1.format   = VK_FORMAT_R32G32_SFLOAT;
+        texcoordAttribute1.offset   = offsetof(Vertex, texcoord1);
+        description.attributes.emplace_back(texcoordAttribute1);
 
         return description;
     }

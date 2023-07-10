@@ -1,7 +1,8 @@
 #version 460
 
 layout(location = 0) in vec3 in_color;
-layout(location = 1) in vec2 in_texcoord;
+layout(location = 1) in vec2 in_texcoord0;
+layout(location = 2) in vec2 in_texcoord1;
 
 layout(location = 0) out vec4 out_color;
 
@@ -19,6 +20,6 @@ layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame {
 };
 
 void main() {
-    vec3 color = texture(diffuse_tex, in_texcoord).xyz;
+    vec3 color = texture(diffuse_tex, in_texcoord0).xyz;
     out_color  = vec4(color * ambient_color.xyz, 1.0);
 }

@@ -5,17 +5,7 @@
 namespace lumi {
 
 void PBRMaterial::CreateDescriptorSet(RenderResource* resource) {
-    vk::Texture2D* diffuse_tex = resource->GetTexture2D(diffuse_tex_name);
-    if (diffuse_tex == nullptr) {
-        diffuse_tex = resource->GetTexture2D("white");
-    }
-
-    resource->EditDescriptorSet(&descriptor_set)
-        .BindImage(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                   VK_SHADER_STAGE_FRAGMENT_BIT, resource->sampler_nearest,
-                   diffuse_tex->image.image_view,
-                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        .Execute();
+    EditDescriptorSet(resource, false);
 }
 
 void PBRMaterial::CreatePipeline(RenderResource* resource,
@@ -92,6 +82,11 @@ void PBRMaterial::CreatePipeline(RenderResource* resource,
 }
 
 void PBRMaterial::Upload(RenderResource* resource) {
+    EditDescriptorSet(resource, true);
+}
+
+void PBRMaterial::EditDescriptorSet(RenderResource* resource,
+                                    bool            update_only) {
     // Update textures
     vk::Texture2D* diffuse_tex = resource->GetTexture2D(diffuse_tex_name);
     if (diffuse_tex == nullptr) {
@@ -100,10 +95,10 @@ void PBRMaterial::Upload(RenderResource* resource) {
 
     resource->EditDescriptorSet(&descriptor_set)
         .BindImage(0, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                   VK_SHADER_STAGE_FRAGMENT_BIT, resource->sampler_nearest,
+                   VK_SHADER_STAGE_FRAGMENT_BIT, diffuse_tex->sampler,
                    diffuse_tex->image.image_view,
                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-        .Execute(true);
+        .Execute(update_only);
 }
 
 }  // namespace lumi

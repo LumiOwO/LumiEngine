@@ -92,6 +92,13 @@ if(NOT TARGET tiny_obj_loader)
         PROPERTY FOLDER thirdparty/tiny_obj_loader)
 endif()
 
+# tinygltf
+if(NOT TARGET tinygltf)
+    add_subdirectory(tinygltf)
+    set_property(TARGET tinygltf
+        PROPERTY FOLDER thirdparty/tinygltf)
+endif()
+
 # rttr
 if(NOT TARGET rttr)
     set(BUILD_RTTR_DYNAMIC OFF CACHE BOOL "" FORCE)

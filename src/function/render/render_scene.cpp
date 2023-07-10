@@ -28,42 +28,54 @@ void RenderScene::LoadScene() {
     // TODO: load from json file
     {
         auto material =
-            (PBRMaterial*)resource->CreateMaterial("empire", "PBRMaterial");
+            (PBRMaterial *)resource->CreateMaterial("empire", "PBRMaterial");
         material->diffuse_tex_name = "empire_diffuse";
         material->Upload(resource.get());
     }
 
     {
         auto material =
-            (PBRMaterial*)resource->CreateMaterial("monkey", "PBRMaterial");
+            (PBRMaterial *)resource->CreateMaterial("monkey", "PBRMaterial");
         material->Upload(resource.get());
     }
 
-    RenderObject& empire = renderables.emplace_back();
-    empire.mesh_name     = "empire";
-    empire.material_name = "empire";
-    empire.position      = {5, -10, 0};
+    //RenderObject& empire = renderables.emplace_back();
+    //empire.mesh_name     = "empire";
+    //empire.material_name = "empire";
+    //empire.position      = {5, -10, 0};
 
-    int cnt = 3;
-    for (int x = -cnt; x <= cnt; x++) {
-        for (int y = -cnt; y <= cnt; y++) {
-            RenderObject& monkey = renderables.emplace_back();
-            monkey.mesh_name     = "monkey";
-            monkey.material_name = "monkey";
-            monkey.rotation = Quaternion::Rotation(Vec3f(0, 0, ToRadians(0))) *
-                              monkey.rotation;
-            monkey.position = Vec3f(x, 0, y) * 5;
-        }
-    }
+    //int cnt = 3;
+    //for (int x = -cnt; x <= cnt; x++) {
+    //    for (int y = -cnt; y <= cnt; y++) {
+    //        RenderObject& monkey = renderables.emplace_back();
+    //        monkey.mesh_name     = "monkey";
+    //        monkey.material_name = "monkey";
+    //        monkey.rotation = Quaternion::Rotation(Vec3f(0, 0, ToRadians(0))) *
+    //                          monkey.rotation;
+    //        monkey.position = Vec3f(x, 0, y) * 5;
+    //    }
+    //}
 
+    resource->LoadFromGLTFFile("scenes/DamagedHelmet/DamagedHelmet.gltf");
+
+    PBRMaterial *material =
+        (PBRMaterial *)resource->GetMaterial("DamagedHelmet_mat_0");
+    material->diffuse_tex_name = material->occlusion_tex_name;
+    material->Upload(resource.get());
+
+    RenderObject& helmet = renderables.emplace_back();
+    helmet.mesh_name     = "DamagedHelmet";
+    helmet.material_name = "DamagedHelmet_mat_0";
+
+    camera.position = {0, 0, -3};
 }
 
 void RenderScene::UpdateVisibleObjects() {
     resource->visible_object_descs.clear();
 
     // TODO: culling
-    for (auto& renderable : renderables) {
-        auto& desc    = resource->visible_object_descs.emplace_back();
+    for (auto &renderable : renderables) {
+        auto &desc    = resource->visible_object_descs.emplace_back();
         desc.mesh     = resource->GetMesh(renderable.mesh_name);
         desc.material = resource->GetMaterial(renderable.material_name);
         desc.object   = &renderable;
@@ -73,8 +85,8 @@ void RenderScene::UpdateVisibleObjects() {
 void RenderScene::UploadPerFrameResource() {
     auto per_frame_buffer_object = resource->per_frame.object;
 
-    const Mat4x4f& view                    = camera.view();
-    const Mat4x4f& proj                    = camera.projection();
+    const Mat4x4f &view                    = camera.view();
+    const Mat4x4f &proj                    = camera.projection();
     per_frame_buffer_object->view          = view;
     per_frame_buffer_object->proj          = proj;
     per_frame_buffer_object->proj_view     = proj * view;
