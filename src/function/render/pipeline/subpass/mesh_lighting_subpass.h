@@ -4,16 +4,13 @@
 
 namespace lumi {
 
-struct Material;
-
 class MeshLightingSubpass : public RenderSubpass {
 public:
     using RenderSubpass::RenderSubpass;
 
-    virtual void CmdRender(VkCommandBuffer cmd) override;
+    virtual void Init(uint32_t subpass_idx) override {}
 
-private:
-    void CmdBindMaterial(VkCommandBuffer cmd, Material* material);
+    virtual void CmdRender(VkCommandBuffer cmd) override;
 };
 
 }  // namespace lumi

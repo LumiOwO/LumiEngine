@@ -65,12 +65,12 @@ struct PBRMaterial : public Material {
 
     virtual void Upload(RenderResource* resource) override;
 
-private:
-    void EditDescriptorSet(RenderResource* resource, bool update_only);
+protected:
+    virtual void EditDescriptorSet(RenderResource* resource,
+                                   bool            update_only) override;
 };
 
 META(PBRMaterial) {
-    // TODO: reflection
     Meta::class_<PBRMaterial>("PBRMaterial")
         .constructor<>()(meta::Policy::ctor::as_std_shared_ptr);
 }

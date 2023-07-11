@@ -304,7 +304,9 @@ struct PipelineBuilder {
     VkPipelineLayout                             pipeline_layout{};
     VkPipelineDepthStencilStateCreateInfo        depth_stencil{};
 
-    VkPipeline Build(VkDevice device, VkRenderPass render_pass) {
+    VkPipeline Build(VkDevice device, VkRenderPass render_pass,
+                     uint32_t subpass_idx = 0) {
+        // TODO: !!!! fix subpass index
         // make viewport state from our stored viewport and scissor.
         // at the moment we won't support multiple viewports or scissors
         VkPipelineViewportStateCreateInfo viewport_state{};
@@ -353,7 +355,7 @@ struct PipelineBuilder {
         pipelineInfo.pDynamicState       = &dynamic_info;
         pipelineInfo.layout              = pipeline_layout;
         pipelineInfo.renderPass          = render_pass;
-        pipelineInfo.subpass             = 0;
+        pipelineInfo.subpass             = subpass_idx;
         pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
         pipelineInfo.pDepthStencilState  = &depth_stencil;
 

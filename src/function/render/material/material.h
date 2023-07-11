@@ -27,6 +27,10 @@ struct Material {
                                 VkRenderPass    render_pass) = 0;
     
     virtual void Upload(RenderResource* resource) = 0;
+
+protected:
+    virtual void EditDescriptorSet(RenderResource* resource,
+                                   bool            update_only) = 0;
 };
 
 }  // namespace lumi

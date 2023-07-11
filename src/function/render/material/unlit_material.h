@@ -22,12 +22,12 @@ struct UnlitMaterial : public Material {
 
     virtual void Upload(RenderResource* resource) override;
 
-private:
-    void EditDescriptorSet(RenderResource* resource, bool update_only);
+protected:
+    virtual void EditDescriptorSet(RenderResource* resource,
+                                   bool            update_only) override;
 };
 
 META(UnlitMaterial) {
-    // TODO: reflection
     Meta::class_<UnlitMaterial>("UnlitMaterial")
         .constructor<>()(meta::Policy::ctor::as_std_shared_ptr);
 }

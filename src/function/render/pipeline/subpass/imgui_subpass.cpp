@@ -7,7 +7,7 @@
 
 namespace lumi {
 
-void ImGuiSubpass::CreateImGuiContext(uint32_t subpass_idx) {
+void ImGuiSubpass::Init(uint32_t subpass_idx) {
     render_pass_->rhi->CreateImGuiContext(render_pass_->vk_render_pass(),
                                           subpass_idx);
 }

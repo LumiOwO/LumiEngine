@@ -5,13 +5,19 @@ namespace lumi {
 void PresentPass::PreInit() {
     mesh_lighting_pass_ = std::make_shared<MeshLightingSubpass>(this);
 
+    skybox_pass_ = std::make_shared<SkyboxSubpass>(this);
+
     imgui_pass_ = std::make_shared<ImGuiSubpass>(this);
 }
 
 void PresentPass::PostInit() {
     rhi->SetMainRenderPass(vk_render_pass_);
 
-    imgui_pass_->CreateImGuiContext(kSubpassImGui);
+    mesh_lighting_pass_->Init(kSubpassMeshLighting);
+
+    skybox_pass_->Init(kSubpassSkybox);
+
+    imgui_pass_->Init(kSubpassImGui);
 }
 
 void PresentPass::Finalize() {
@@ -108,6 +114,38 @@ void PresentPass::CreateRenderPass() {
         depth_dependency.dstAccessMask =
             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
     }
+    // skybox pass
+    {
+        auto& desc                   = subpass_descs[kSubpassSkybox];
+        desc.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        desc.colorAttachmentCount    = 1;
+        desc.pColorAttachments       = &attachment_refs[kAttachmentSwapchain];
+        desc.pDepthStencilAttachment = &attachment_refs[kAttachmentDepth];
+
+        // color subpass dependency
+        auto& dependency        = subpass_dependencies.emplace_back();
+        dependency.srcSubpass   = kSubpassMeshLighting;
+        dependency.dstSubpass   = kSubpassSkybox;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+        // depth subpass dependency
+        auto& depth_dependency      = subpass_dependencies.emplace_back();
+        depth_dependency.srcSubpass = kSubpassMeshLighting;
+        depth_dependency.dstSubpass = kSubpassSkybox;
+        depth_dependency.srcStageMask =
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        depth_dependency.srcAccessMask = 0;
+        depth_dependency.dstStageMask =
+            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
+            VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        depth_dependency.dstAccessMask =
+            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    }
+    // imgui pass
     {
         auto& desc                   = subpass_descs[kSubpassImGui];
         desc.pipelineBindPoint       = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -117,7 +155,7 @@ void PresentPass::CreateRenderPass() {
 
         // color subpass dependency
         auto& dependency        = subpass_dependencies.emplace_back();
-        dependency.srcSubpass   = kSubpassMeshLighting;
+        dependency.srcSubpass   = kSubpassSkybox;
         dependency.dstSubpass   = kSubpassImGui;
         dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
         dependency.srcAccessMask = 0;

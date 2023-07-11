@@ -166,6 +166,10 @@ void RenderResource::InitDefaultTextures() {
 
     // lut
     CreateTextureHDRFromFile("lut_brdf", "textures/lut/brdf.hdr");
+
+    // TODO: skybox
+    CreateTextureCubeMapFromFile("skybox_specular",
+                                 "textures/skybox/skybox_specular");
 }
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
