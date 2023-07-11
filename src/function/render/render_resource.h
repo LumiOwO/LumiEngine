@@ -159,7 +159,8 @@ public:
                                    const void*              pixels);
 
     vk::Texture2D* CreateTexture2DFromFile(const std::string& name,
-                                           const fs::path&    filepath);
+                                           const fs::path&    filepath,
+                                           bool               is_srgb);
 
     vk::DescriptorEditor EditDescriptorSet(vk::DescriptorSet* descriptor_set) {
         return vk::DescriptorEditor::Begin(
@@ -176,7 +177,8 @@ private:
 
     void UploadTexture2D(vk::Texture2D* texture, const void* pixels);
 
-    void GLTFLoadTextures(const std::string& name, tinygltf::Model& gltf_model);
+    void GLTFLoadTexture(const std::string& name, tinygltf::Model& gltf_model,
+                         int idx, bool is_srgb);
 
     void GLTFLoadMaterials(const std::string& name,
                            tinygltf::Model&   gltf_model);

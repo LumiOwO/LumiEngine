@@ -40,7 +40,7 @@ layout(set = 1, binding = 0) readonly buffer _unused_name_camera {
 };
 
 layout(set = 1, binding = 1) readonly buffer _unused_name_environment {
-    vec4  sunlight_color;
+    vec4  sunlight_color;  // w for intensity
     vec3  sunlight_dir;
     float _padding_sunlight_dir;
 
@@ -48,7 +48,23 @@ layout(set = 1, binding = 1) readonly buffer _unused_name_environment {
 };
 
 const float kPi           = 3.141592653589793;
+const float kOneOverPi    = 1.0 / kPi;
 const float kMinRoughness = 0.04;
+
+struct PBRInfo {
+    float NdotL;
+    float NdotV;
+    float NdotH;
+    float LdotH;
+    float VdotH;
+    float metallic;
+    float perceptual_roughness;
+    float alpha_roughness;  
+    vec3  diffuse_color;
+    vec3  specular_color;
+    vec3  reflectance0;     // full reflectance color (normal incidence angle)
+    vec3  reflectance90;    // reflectance color at grazing angle
+};
 
 vec3 Uncharted2Tonemap(vec3 color) {
     float A = 0.15;
@@ -63,7 +79,59 @@ vec3 Uncharted2Tonemap(vec3 color) {
            E / F;
 }
 
+// Find the normal for this fragment, pulling either from a predefined normal map
+// or from the interpolated mesh normal and tangent attributes.
+vec3 UnpackNormal(vec3 packed_normal) {
+    // Perturb normal, see http://www.thetenthplanet.de/archives/1180
+    vec3 tangent_normal;
+    tangent_normal.xy = (packed_normal.xy * 2.0 - 1.0);
+    tangent_normal.z =
+        sqrt(1.0 - clamp(dot(tangent_normal.xy, tangent_normal.xy), 0.0, 1.0));
+
+    vec3 q1  = dFdx(in_position);
+    vec3 q2  = dFdy(in_position);
+    vec2 st1 = dFdx(in_texcoord0);
+    vec2 st2 = dFdy(in_texcoord0);
+
+    vec3 N = normalize(in_normal);
+    vec3 T = normalize(q1 * st2.t - q2 * st1.t);
+    vec3 B = -normalize(cross(N, T));
+
+    mat3 tangent_to_world = mat3(T, B, N);
+    return normalize(tangent_to_world * tangent_normal);
+}
+
+// The following equation models the Fresnel reflectance term of the spec equation (aka F())
+vec3 SpecularReflection(PBRInfo info) {
+    return info.reflectance0 + (info.reflectance90 - info.reflectance0) *
+                                   pow(clamp(1.0 - info.VdotH, 0.0, 1.0), 5.0);
+}
+
+// This calculates the specular geometric attenuation (aka G()),
+// where rougher material will reflect less light back to the viewer.
+float GeometricOcclusion(PBRInfo info) {
+    float NdotL = info.NdotL;
+    float NdotV = info.NdotV;
+    float r     = info.alpha_roughness;
+
+    float attenuationL =
+        2.0 * NdotL / (NdotL + sqrt(r * r + (1.0 - r * r) * (NdotL * NdotL)));
+    float attenuationV =
+        2.0 * NdotV / (NdotV + sqrt(r * r + (1.0 - r * r) * (NdotV * NdotV)));
+    return attenuationL * attenuationV;
+}
+
+// The following equation(s) model the distribution of microfacet normals 
+// across the area being drawn (aka D())
+// Implementation from "Average Irregularity Representation of a Roughened Surface for Ray Reflection" by T. S. Trowbridge, and K. P. Reitz
+float MicrofacetDistribution(PBRInfo info) {
+    float roughness_square = info.alpha_roughness * info.alpha_roughness;
+    float f = (info.NdotH * roughness_square - info.NdotH) * info.NdotH + 1.0;
+    return roughness_square / (kPi * f * f);
+}
+
 void main() {
+    // --- Get texture values ---
     vec4 base_color_tex_value =
         texture(base_color_tex,
                 texcoord_set_base_color <= 0 ? in_texcoord0 : in_texcoord1)
@@ -93,9 +161,88 @@ void main() {
                 texcoord_set_emissive <= 0 ? in_texcoord0 : in_texcoord1)
             .rgb;
 
-    vec3 color = vec3(occlusion_tex_value);
-    out_color  = vec4(color * sunlight_color.xyz, 1.0);
+    // --- Prepare PBR infos ---
+    vec4 base_color = base_color_factor * base_color_tex_value;
+    if (alpha_mode == 1 && base_color.a < alpha_cutoff) {
+        discard;
+    }
+    base_color.rgb *= in_color;
 
+    // Roughness is authored as perceptual roughness; as is convention,
+    // convert to material roughness by squaring the perceptual roughness.
+    float metallic = clamp(metallic_factor * metallic_tex_value, 0.0, 1.0);
+    float perceptual_roughness =
+        clamp(roughness_factor * roughness_tex_value, kMinRoughness, 1.0);
+    float alpha_roughness = perceptual_roughness * perceptual_roughness;
+
+    vec3 f0            = vec3(0.04);
+    vec3 diffuse_color = base_color.rgb * (vec3(1.0) - f0);
+    diffuse_color *= 1.0 - metallic;
+    vec3 specular_color = mix(f0, base_color.rgb, metallic);
+
+    // Compute reflectance
+    float reflectance =
+        max(max(specular_color.r, specular_color.g), specular_color.b);
+    // For typical incident reflectance range (between 4% to 100%),
+    // set the grazing reflectance to 100% for typical fresnel effect.
+    // For very low reflectance range on highly diffuse objects (below 4%), 
+    // incrementally reduce grazing reflecance to 0%.
+    float reflectance90            = clamp(reflectance * 25.0, 0.0, 1.0);
+    vec3  specular_environment_R0  = specular_color.rgb;
+    vec3  specular_environment_R90 = vec3(1.0, 1.0, 1.0) * reflectance90;
+
+    // Directions
+    // TODO: normal map
+    vec3 n = UnpackNormal(normal_tex_value);    // normal
+    vec3 v = normalize(cam_pos - in_position);  // view dir from surface
+    vec3 l = normalize(-sunlight_dir);          // light dir from surface
+    vec3 h = normalize(l + v);                  // Half vector
+    // vec3 reflection = -normalize(reflect(v, n));
+    // reflection.y *= -1.0f;
+
+    float NdotL = clamp(dot(n, l), 0.001, 1.0);
+    float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
+    float NdotH = clamp(dot(n, h), 0.0, 1.0);
+    float LdotH = clamp(dot(l, h), 0.0, 1.0);
+    float VdotH = clamp(dot(v, h), 0.0, 1.0);
+
+    PBRInfo pbr_info = PBRInfo(
+        NdotL, NdotV, NdotH, LdotH, VdotH, metallic, perceptual_roughness,
+        alpha_roughness, diffuse_color, specular_color, specular_environment_R0,
+        specular_environment_R90);
+
+    // --- Accumulate color ---
+    vec3 color = vec3(0.0);
+
+    // Calculate the shading terms for the microfacet specular shading model
+    vec3  F = SpecularReflection(pbr_info);
+    float G = GeometricOcclusion(pbr_info);
+    float D = MicrofacetDistribution(pbr_info);
+
+    // Calculation of analytical lighting contribution
+    vec3 diffuse_contrib  = (1.0 - F) * diffuse_color * kOneOverPi;
+    vec3 specular_contrib = F * G * D / (4.0 * NdotL * NdotV);
+    // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
+    vec3  local_illum        = NdotL * (diffuse_contrib + specular_contrib);
+    float sunlight_intensity = sunlight_color.w;
+    local_illum *= sunlight_color.rgb * sunlight_intensity;
+    color += local_illum;
+
+    // TODO: Calculate lighting contribution from image based lighting source (IBL)
+    // color += getIBLContribution(pbr_info, n, reflection);
+
+    // Apply ambient occlusion
+    float ao = occlusion_tex_value;
+    color *= ao;
+
+    // Apply emission
+    vec3 emissive = emissive_factor.rgb * emissive_tex_value;
+    color += emissive;
+    
+    // Finally output
+    out_color = vec4(color, base_color.a);
+
+    // Debug
     switch (debug_idx) {
         case 0:
             break;

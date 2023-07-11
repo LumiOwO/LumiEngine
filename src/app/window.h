@@ -1,7 +1,8 @@
 #pragma once
 
 #include "function/render/rhi/vulkan_utils.h"
-#include "GLFW/glfw3.h"
+
+struct GLFWwindow;
 
 namespace lumi {
 

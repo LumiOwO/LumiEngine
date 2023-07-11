@@ -7,11 +7,14 @@
     }
   },
   "env": {
-    "sunlight_color": {
-      "#is_color": true,
-      "#value": [1.0,1.0,1.0]
-    },
-    "sunlight_dir": [0.0,-1.0,0.0]
+    "sunlight": {
+      "color": {
+        "#is_color": true,
+        "#value": [1.0,1.0,1.0]
+      },
+      "dir": [-15.375,0.25,52.5],
+      "intensity": 4.0
+    }
   },
   "view_speed": {
     "move": {

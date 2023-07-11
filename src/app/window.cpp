@@ -1,4 +1,5 @@
 #include "window.h"
+#include "GLFW/glfw3.h"
 
 #include "imgui/backends/imgui_impl_glfw.h"
 #include "imgui/backends/imgui_impl_vulkan.h"

@@ -1,6 +1,8 @@
 ## [v0.1.1] - 2023-xx-xx
 - Bug fix: DescriptorEditor image_info address error caused by adding elements to std::vector
+- Bug fix: Pan mode movement
 - Add unlit material
+- Add PBR material local illumination
 
 ## [v0.1.0] - 2023-07-09
 - Refactor render system

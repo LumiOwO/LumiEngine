@@ -85,7 +85,8 @@ void MeshLightingSubpass::CmdBindMaterial(VkCommandBuffer cmd,
     scissor.extent = extent;
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    vkCmdSetCullMode(cmd, material->cull_mode);
+    vkCmdSetCullMode(cmd, material->double_sided ? VK_CULL_MODE_NONE
+                                                 : VK_CULL_MODE_BACK_BIT);
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             material->pipeline_layout,

@@ -136,8 +136,17 @@ void RenderResource::Init() {
     tex_info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
     tex_info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
 
+    // clang-format off
     CreateTexture2D("white", &tex_info, &Color4u8::kWhite);
     CreateTexture2D("black", &tex_info, &Color4u8::kBlack);
+    CreateTexture2D("red",   &tex_info, &Color4u8::kRed);
+    CreateTexture2D("green", &tex_info, &Color4u8::kGreen);
+    CreateTexture2D("blue",  &tex_info, &Color4u8::kBlue);
+    // clang-format on
+
+    tex_info.format         = VK_FORMAT_R8G8B8A8_UNORM;
+    Color4u8 normal_default = Color4u8(128, 128, 255, 255);
+    CreateTexture2D("normal_default", &tex_info, &normal_default);
 }
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
@@ -373,8 +382,9 @@ Mesh *RenderResource::CreateMeshFromObjFile(const std::string &name,
     return &mesh;
 }
 
-vk::Texture2D *RenderResource::CreateTexture2DFromFile(
-    const std::string &name, const fs::path &filepath) {
+vk::Texture2D *RenderResource::CreateTexture2DFromFile(const std::string &name,
+                                                       const fs::path &filepath,
+                                                       bool is_srgb) {
 
     vk::Texture2D *res = GetTexture2D(name);
     if (res) {
@@ -396,15 +406,16 @@ vk::Texture2D *RenderResource::CreateTexture2DFromFile(
     VkImageAspectFlags aspect = VK_IMAGE_ASPECT_NONE;
     switch (texChannels) {
         case STBI_rgb:
-            format = VK_FORMAT_R8G8B8_SRGB;
+            format = is_srgb ? VK_FORMAT_R8G8B8_SRGB : VK_FORMAT_R8G8B8_UNORM;
             aspect = VK_IMAGE_ASPECT_COLOR_BIT;
             break;
         case STBI_rgb_alpha:
-            format = VK_FORMAT_R8G8B8A8_SRGB;
+            format =
+                is_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
             aspect = VK_IMAGE_ASPECT_COLOR_BIT;
             break;
         case STBI_grey:
-            format = VK_FORMAT_R8_UNORM;
+            format = is_srgb ? VK_FORMAT_R8_SRGB : VK_FORMAT_R8_UNORM;
             aspect = VK_IMAGE_ASPECT_DEPTH_BIT;
             break;
         default:
@@ -542,11 +553,14 @@ void RenderResource::UploadTexture2D(vk::Texture2D *texture,
     VkDeviceSize channels = 0;
     switch (texture->format) {
         case VK_FORMAT_R8G8B8_SRGB:
+        case VK_FORMAT_R8G8B8_UNORM:
             channels = 3;
             break;
         case VK_FORMAT_R8G8B8A8_SRGB:
+        case VK_FORMAT_R8G8B8A8_UNORM:
             channels = 4;
             break;
+        case VK_FORMAT_R8_SRGB:
         case VK_FORMAT_R8_UNORM:
             channels = 1;
             break;
@@ -651,7 +665,6 @@ void RenderResource::LoadFromGLTFFile(const fs::path &filepath) {
     }
 
     auto &name = absolute_path.stem().string();
-    GLTFLoadTextures(name, gltf_model);
     GLTFLoadMaterials(name, gltf_model);
 
     // Load Mesh
@@ -666,63 +679,66 @@ void RenderResource::LoadFromGLTFFile(const fs::path &filepath) {
     UploadMesh(&mesh);
 }
 
-void RenderResource::GLTFLoadTextures(const std::string &name,
-                                      tinygltf::Model   &gltf_model) {
-    for (size_t i = 0; i < gltf_model.textures.size(); i++) {
-        tinygltf::Texture &tex   = gltf_model.textures[i];
-        tinygltf::Image   &image = gltf_model.images[tex.source];
+void RenderResource::GLTFLoadTexture(const std::string &name,
+                                     tinygltf::Model &gltf_model, int idx,
+                                     bool is_srgb) {
+    const std::string &tex_name = name + "_tex_" + std::to_string(idx);
+    if (GetTexture2D(tex_name) != nullptr) return;
 
-        vk::Texture2DCreateInfo info{};
-        info.width  = image.width;
-        info.height = image.height;
-        info.image_usage =
-            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
-        info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+    tinygltf::Texture &tex   = gltf_model.textures[idx];
+    tinygltf::Image   &image = gltf_model.images[tex.source];
 
-        switch (image.component) {
-            case 1:
-                info.format = VK_FORMAT_R8_UNORM;
+    vk::Texture2DCreateInfo info{};
+    info.width  = image.width;
+    info.height = image.height;
+    info.image_usage =
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+
+    switch (image.component) {
+        case 1:
+            info.format = is_srgb ? VK_FORMAT_R8_SRGB : VK_FORMAT_R8_UNORM;
+            break;
+        case 3:
+            info.format =
+                is_srgb ? VK_FORMAT_R8G8B8_SRGB : VK_FORMAT_R8G8B8_UNORM;
+            break;
+        case 4:
+            info.format =
+                is_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
+            break;
+        default:
+            break;
+    }
+
+    if (tex.sampler == -1) {
+        // No sampler specified, use a default one
+        info.filter_mode = VK_FILTER_LINEAR;
+    } else {
+        tinygltf::Sampler &sampler = gltf_model.samplers[tex.sampler];
+        switch (sampler.minFilter) {
+            case -1:
+            case TINYGLTF_TEXTURE_FILTER_NEAREST:
+            case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
+            case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
+                info.filter_mode = VK_FILTER_NEAREST;
                 break;
-            case 3:
-                info.format = VK_FORMAT_R8G8B8_SRGB;
-                break;
-            case 4:
-                info.format = VK_FORMAT_R8G8B8A8_SRGB;
+            case TINYGLTF_TEXTURE_FILTER_LINEAR:
+            case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
+            case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
+                info.filter_mode = VK_FILTER_LINEAR;
                 break;
             default:
+                LOG_ERROR(
+                    "Unknown filter mode when loading GLTF texture "
+                    "{}_tex_{}",
+                    name, idx);
                 break;
         }
-
-        if (tex.sampler == -1) {
-            // No sampler specified, use a default one
-            info.filter_mode = VK_FILTER_LINEAR;
-        } else {
-            tinygltf::Sampler &sampler = gltf_model.samplers[tex.sampler];
-            switch (sampler.minFilter) {
-                case -1:
-                case TINYGLTF_TEXTURE_FILTER_NEAREST:
-                case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
-                case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
-                    info.filter_mode = VK_FILTER_NEAREST;
-                    break;
-                case TINYGLTF_TEXTURE_FILTER_LINEAR:
-                case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
-                case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
-                    info.filter_mode = VK_FILTER_LINEAR;
-                    break;
-                default:
-                    LOG_ERROR(
-                        "Unknown filter mode when loading GLTF texture "
-                        "{}_tex_{}",
-                        name, i);
-                    break;
-            }
-        }
-
-        CreateTexture2D(name + "_tex_" + std::to_string(i), &info,
-                        image.image.data());
     }
+
+    CreateTexture2D(tex_name, &info, image.image.data());
 }
 
 void RenderResource::GLTFLoadMaterials(const std::string &name,
@@ -734,20 +750,21 @@ void RenderResource::GLTFLoadMaterials(const std::string &name,
             name + "_mat_" + std::to_string(i), "PBRMaterial");
 
         if (mat.doubleSided) {
-            material->cull_mode = VK_CULL_MODE_NONE;
+            material->double_sided = true;
         }
         if (mat.values.find("baseColorTexture") != mat.values.end()) {
+            int tex_idx = mat.values["baseColorTexture"].TextureIndex();
+            GLTFLoadTexture(name, gltf_model, tex_idx, true);
             material->base_color_tex_name =
-                name + "_tex_" +
-                std::to_string(mat.values["baseColorTexture"].TextureIndex());
+                name + "_tex_" + std::to_string(tex_idx);
             material->params.data->texcoord_set_base_color =
                 mat.values["baseColorTexture"].TextureTexCoord();
         }
         if (mat.values.find("metallicRoughnessTexture") != mat.values.end()) {
+            int tex_idx = mat.values["metallicRoughnessTexture"].TextureIndex();
+            GLTFLoadTexture(name, gltf_model, tex_idx, true);
             material->metallic_roughness_tex_name =
-                name + "_tex_" +
-                std::to_string(
-                    mat.values["metallicRoughnessTexture"].TextureIndex());
+                name + "_tex_" + std::to_string(tex_idx);
             material->params.data->texcoord_set_metallic_roughness =
                 mat.values["metallicRoughnessTexture"].TextureTexCoord();
         }
@@ -766,28 +783,30 @@ void RenderResource::GLTFLoadMaterials(const std::string &name,
         }
         if (mat.additionalValues.find("normalTexture") !=
             mat.additionalValues.end()) {
+            int tex_idx = mat.additionalValues["normalTexture"].TextureIndex();
+            GLTFLoadTexture(name, gltf_model, tex_idx, false);
             material->normal_tex_name =
-                name + "_tex_" +
-                std::to_string(
-                    mat.additionalValues["normalTexture"].TextureIndex());
+                name + "_tex_" + std::to_string(tex_idx);
             material->params.data->texcoord_set_normal =
                 mat.additionalValues["normalTexture"].TextureTexCoord();
         }
         if (mat.additionalValues.find("emissiveTexture") !=
             mat.additionalValues.end()) {
+            int tex_idx =
+                mat.additionalValues["emissiveTexture"].TextureIndex();
+            GLTFLoadTexture(name, gltf_model, tex_idx, true);
             material->emissive_tex_name =
-                name + "_tex_" +
-                std::to_string(
-                    mat.additionalValues["emissiveTexture"].TextureIndex());
+                name + "_tex_" + std::to_string(tex_idx);
             material->params.data->texcoord_set_emissive =
                 mat.additionalValues["emissiveTexture"].TextureTexCoord();
         }
         if (mat.additionalValues.find("occlusionTexture") !=
             mat.additionalValues.end()) {
+            int tex_idx =
+                mat.additionalValues["occlusionTexture"].TextureIndex();
+            GLTFLoadTexture(name, gltf_model, tex_idx, false);
             material->occlusion_tex_name =
-                name + "_tex_" +
-                std::to_string(
-                    mat.additionalValues["occlusionTexture"].TextureIndex());
+                name + "_tex_" + std::to_string(tex_idx);
             material->params.data->texcoord_set_occlusion =
                 mat.additionalValues["occlusionTexture"].TextureTexCoord();
         }

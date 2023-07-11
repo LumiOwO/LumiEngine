@@ -64,9 +64,12 @@ void RenderScene::LoadScene() {
     unlit->base_color_tex_name = "DamagedHelmet_tex_0";
     unlit->Upload(resource.get());
 
+    resource->CreateMaterial("default", "PBRMaterial");
+
     RenderObject &helmet = renderables.emplace_back();
     helmet.mesh_name     = "DamagedHelmet";
     helmet.material_name = "DamagedHelmet_mat_0";
+    helmet.rotation = Quaternion(ToRadians(Vec3f(90, 180, 0)));
     //helmet.material_name = "unlit";
     camera.position = {0, 0, -3};
 }
@@ -96,9 +99,10 @@ void RenderScene::UploadGlobalResource() {
     auto env_data = resource->global.data.env;
 
     env_data->sunlight_color =
-        Vec4f(cvars::GetVec3f("env.sunlight_color").value(), 1.0f);
+        Vec4f(cvars::GetVec3f("env.sunlight.color").value(),
+              cvars::GetFloat("env.sunlight.intensity").value());
     env_data->sunlight_dir =
-        cvars::GetVec3f("env.sunlight_dir").value().Normalize();
+        cvars::GetVec3f("env.sunlight.dir").value().Normalize();
     env_data->debug_idx = cvars::GetInt("debug.pbr_idx").value();
 
     size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();

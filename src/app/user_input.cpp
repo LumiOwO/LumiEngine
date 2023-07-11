@@ -1,6 +1,7 @@
 #include "user_input.h"
-
 #include "window.h"
+#include "GLFW/glfw3.h"
+
 #include "function/cvars/cvar_system.h"
 #include "function/render/render_scene.h"
 
@@ -116,6 +117,7 @@ void UserInput::OnMouseButton(int button, int action, int mods) {
 void UserInput::OnMouseButtonPressed(int button, int mods) {
     if (button == GLFW_MOUSE_BUTTON_RIGHT) {
         flythrough_mode_ = true;
+        forward_ = up_ = right_ = 0;
     } else if (button == GLFW_MOUSE_BUTTON_MIDDLE) {
         pan_mode_ = true;
     }

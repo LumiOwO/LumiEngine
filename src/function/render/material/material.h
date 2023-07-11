@@ -19,7 +19,7 @@ struct Material {
     vk::DescriptorSet descriptor_set{};
     VkPipeline        pipeline{};
     VkPipelineLayout  pipeline_layout{};
-    VkCullModeFlags   cull_mode = VK_CULL_MODE_BACK_BIT;
+    bool              double_sided = false;
 
     virtual void CreateDescriptorSet(RenderResource* resource) = 0;
 

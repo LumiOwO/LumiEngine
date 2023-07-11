@@ -24,11 +24,11 @@ struct PBRMaterial : public Material {
     };
 
     constexpr static const char* kDefaultBaseColorTexName         = "white";
-    constexpr static const char* kDefaultMetallicRoughnessTexName = "white";
-    constexpr static const char* kDefaultNormalTexName            = "white";
-    constexpr static const char* kDefaultOcclusionTexName         = "white";
-    constexpr static const char* kDefaultEmissiveTexName          = "white";
-    constexpr static const char* kShaderName                      = "pbr";
+    constexpr static const char* kDefaultMetallicRoughnessTexName = "green";
+    constexpr static const char* kDefaultNormalTexName    = "normal_default";
+    constexpr static const char* kDefaultOcclusionTexName = "white";
+    constexpr static const char* kDefaultEmissiveTexName  = "black";
+    constexpr static const char* kShaderName              = "pbr";
 
     struct Params {
         int32_t texcoord_set_base_color         = 0;
