@@ -37,7 +37,7 @@ void RenderSystem::Tick() {
 
     scene->UpdateVisibleObjects();
 
-    scene->UploadPerFrameResource();
+    scene->UploadGlobalResource();
 
     pipeline->Render();
 }

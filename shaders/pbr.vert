@@ -10,18 +10,19 @@ layout(location = 0) out vec3 out_color;
 layout(location = 1) out vec2 out_texcoord0;
 layout(location = 2) out vec2 out_texcoord1;
 
-layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame {
+layout(set = 1, binding = 0) readonly buffer _unused_name_camera {
     mat4 view;
     mat4 proj;
     mat4 proj_view;
+    vec3 cam_pos;
 };
 
-struct PerVisibleData {
+struct MeshInstanceData {
     mat4 model;
 };
 
-layout(set = 2, binding = 0) readonly buffer _unused_name_per_visible {
-    PerVisibleData visible_objects[];
+layout(set = 2, binding = 0) readonly buffer _unused_name_mesh_instance {
+    MeshInstanceData visible_objects[];
 };
 
 void main() {

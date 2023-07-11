@@ -50,7 +50,7 @@ struct PBRMaterial : public Material {
         Params*             data{};
         vk::AllocatedBuffer staging_buffer{};
         vk::AllocatedBuffer buffer{};
-    } params = {};
+    } params{};
 
     std::string base_color_tex_name         = kDefaultBaseColorTexName;
     std::string metallic_roughness_tex_name = kDefaultMetallicRoughnessTexName;

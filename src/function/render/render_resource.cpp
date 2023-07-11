@@ -34,86 +34,80 @@ void RenderResource::Init() {
         descriptor_allocator_.Finalize();
     });
 
-    // Per frame
+    // Global
     {
         // --- Resource buffer ---
-        size_t cam_size =  //
-            rhi->PaddedSizeOfSSBO<PerFrameBufferObject::CameraData>();
-        size_t env_size =  //
-            rhi->PaddedSizeOfSSBO<PerFrameBufferObject::EnvironmentData>();
+        size_t cam_size   = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
+        size_t env_size   = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
         size_t alloc_size = rhi->kFramesInFlight * (cam_size + env_size);
-        per_frame.buffer =
+        global.buffer =
             rhi->AllocateBuffer(alloc_size,
                                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                 VMA_MEMORY_USAGE_GPU_ONLY);
 
         // Map resource staging buffer memory to pointer
-        per_frame.staging_buffer =
+        global.staging_buffer =
             rhi->AllocateBuffer(alloc_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                 VMA_MEMORY_USAGE_CPU_ONLY);
-        per_frame.data = rhi->MapMemory(&per_frame.staging_buffer);
+        global.data.begin = rhi->MapMemory(&global.staging_buffer);
 
         dtor_queue_resource_.Push([this]() {
-            rhi->UnmapMemory(&per_frame.staging_buffer);
-            rhi->DestroyBuffer(&per_frame.staging_buffer);
-            rhi->DestroyBuffer(&per_frame.buffer);
+            rhi->UnmapMemory(&global.staging_buffer);
+            rhi->DestroyBuffer(&global.staging_buffer);
+            rhi->DestroyBuffer(&global.buffer);
         });
 
         // TODO: Create per frame textures
 
         // --- Build descriptor set ---
-        auto editor = EditDescriptorSet(&per_frame.descriptor_set);
+        auto editor = EditDescriptorSet(&global.descriptor_set);
 
         editor.BindBuffer(
-            kPerFrameBindingCamera,  //
+            kGlobalBindingCamera,  //
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            per_frame.buffer.buffer, 0,
-            sizeof(PerFrameBufferObject::CameraData));
+            global.buffer.buffer, 0, sizeof(CamDataSSBO));
         editor.BindBuffer(
-            kPerFrameBindingEnvironment,  //
+            kGlobalBindingEnvironment,  //
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
             VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            per_frame.buffer.buffer, 0,
-            sizeof(PerFrameBufferObject::EnvironmentData));
+            global.buffer.buffer, 0, sizeof(EnvDataSSBO));
 
         editor.Execute();
     }
-
-    // Per pass
+    // Mesh instances
     {
         // --- Resource buffer ---
-        size_t alloc_size =
-            rhi->kFramesInFlight *
-            rhi->PaddedSizeOfSSBO(sizeof(PerVisibleBufferObject) *
-                                  kMaxVisibleObjects);
-        per_visible.buffer =
+        size_t size       = rhi->PaddedSizeOfSSBO(sizeof(MeshInstanceSSBO) *
+                                                  kMaxVisibleObjects);
+        size_t alloc_size = rhi->kFramesInFlight * size;
+        mesh_instances.buffer =
             rhi->AllocateBuffer(alloc_size,
                                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
                                     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                                 VMA_MEMORY_USAGE_GPU_ONLY);
 
         // Map resource staging buffer memory to pointer
-        per_visible.staging_buffer =
+        mesh_instances.staging_buffer =
             rhi->AllocateBuffer(alloc_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                 VMA_MEMORY_USAGE_CPU_ONLY);
-        per_visible.data = rhi->MapMemory(&per_visible.staging_buffer);
+        mesh_instances.data.begin =
+            rhi->MapMemory(&mesh_instances.staging_buffer);
 
         dtor_queue_resource_.Push([this]() {
-            rhi->UnmapMemory(&per_visible.staging_buffer);
-            rhi->DestroyBuffer(&per_visible.staging_buffer);
-            rhi->DestroyBuffer(&per_visible.buffer);
+            rhi->UnmapMemory(&mesh_instances.staging_buffer);
+            rhi->DestroyBuffer(&mesh_instances.staging_buffer);
+            rhi->DestroyBuffer(&mesh_instances.buffer);
         });
 
         // --- Build descriptor set ---
-        auto editor = EditDescriptorSet(&per_visible.descriptor_set);
+        auto editor = EditDescriptorSet(&mesh_instances.descriptor_set);
 
-        editor.BindBuffer(kPerVisibleBindingModelMatrix,
-                          VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-                          VK_SHADER_STAGE_VERTEX_BIT, per_visible.buffer.buffer,
-                          0,
-                          sizeof(PerVisibleBufferObject) * kMaxVisibleObjects);
+        editor.BindBuffer(
+            kMeshInstanceBinding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+            VK_SHADER_STAGE_VERTEX_BIT, mesh_instances.buffer.buffer, 0,
+            sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
 
         editor.Execute();
     }
@@ -155,35 +149,49 @@ void RenderResource::PushDestructor(std::function<void()> &&destructor) {
 void RenderResource::ResetMappedPointers() {
     int idx = rhi->frame_idx();
 
-    per_frame.object = reinterpret_cast<PerFrameBufferObject *>(
-        (char *)(per_frame.data) +
-        idx * rhi->PaddedSizeOfSSBO<PerFrameBufferObject>());
+    // global
+    {
+        size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
+        size_t env_size = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
 
-    per_visible.object = reinterpret_cast<PerVisibleBufferObject *>(
-        (char *)(per_visible.data) +
-        idx * rhi->PaddedSizeOfSSBO(sizeof(PerVisibleBufferObject) *
-                                    kMaxVisibleObjects));
+        char *begin = (char *)(global.data.begin);
+        char *cam   = begin + idx * (cam_size + env_size);
+        char *env   = cam + cam_size;
+
+        global.data.cam = reinterpret_cast<CamDataSSBO *>(cam);
+        global.data.env = reinterpret_cast<EnvDataSSBO *>(env);
+    }
+    // Mesh Instances
+    {
+        size_t size = rhi->PaddedSizeOfSSBO(sizeof(MeshInstanceSSBO) *
+                                            kMaxVisibleObjects);
+
+        char *begin     = (char *)(mesh_instances.data.begin);
+        char *instances = begin + idx * size;
+
+        mesh_instances.data.cur_instance =
+            reinterpret_cast<MeshInstanceSSBO *>(instances);
+    }
 }
 
-std::vector<uint32_t> RenderResource::GetPerFrameDynamicOffsets() const {
-    auto res = std::vector<uint32_t>(kPerFrameBindingCount);
+std::vector<uint32_t> RenderResource::GlobalSSBODynamicOffsets() const {
+    auto res = std::vector<uint32_t>(kGlobalBindingCount);
 
-    size_t cam_size =  //
-        rhi->PaddedSizeOfSSBO<PerFrameBufferObject::CameraData>();
-    size_t env_size =  //
-        rhi->PaddedSizeOfSSBO<PerFrameBufferObject::EnvironmentData>();
+    size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
+    size_t env_size = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
 
     res[0] = (uint32_t)(cam_size + env_size) * rhi->frame_idx();
     res[1] = res[0] + (uint32_t)cam_size;
     return res;
 }
 
-std::vector<uint32_t> RenderResource::GetPerVisibleDynamicOffsets() const {
-    auto res = std::vector<uint32_t>(kPerVisibleBindingCount);
+std::vector<uint32_t> RenderResource::MeshInstanceSSBODynamicOffsets() const {
+    auto res = std::vector<uint32_t>(kMeshInstanceBindingCount);
 
-    res[0] = (uint32_t)rhi->PaddedSizeOfSSBO(sizeof(PerVisibleBufferObject) *
-                                             kMaxVisibleObjects) *
-             rhi->frame_idx();
+    size_t size =
+        rhi->PaddedSizeOfSSBO(sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
+
+    res[0] = (uint32_t)size * rhi->frame_idx();
     return res;
 }
 
@@ -857,13 +865,13 @@ void RenderResource::GLTFLoadMesh(const tinygltf::Model &model,
     for (size_t j = 0; j < gltf_mesh.primitives.size(); j++) {
         auto &primitive = gltf_mesh.primitives[j];
 
-        uint32_t  vertexStart = static_cast<uint32_t>(mesh->vertices.size());
-        uint32_t  indexStart  = static_cast<uint32_t>(mesh->indices.size());
-        uint32_t  indexCount  = 0;
-        uint32_t  vertexCount = 0;
-        glm::vec3 posMin{};
-        glm::vec3 posMax{};
-        bool      hasIndices = primitive.indices > -1;
+        uint32_t vertexStart = static_cast<uint32_t>(mesh->vertices.size());
+        uint32_t indexStart  = static_cast<uint32_t>(mesh->indices.size());
+        uint32_t indexCount  = 0;
+        uint32_t vertexCount = 0;
+        Vec3f    posMin{};
+        Vec3f    posMax{};
+        bool     hasIndices = primitive.indices > -1;
 
         // Vertices
         const float *bufferPos          = nullptr;

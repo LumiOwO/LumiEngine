@@ -66,7 +66,7 @@ void RenderScene::LoadScene() {
     helmet.mesh_name     = "DamagedHelmet";
     helmet.material_name = "DamagedHelmet_mat_0";
     //helmet.material_name = "unlit";
-    camera.position      = {0, 0, -3};
+    camera.position = {0, 0, -3};
 }
 
 void RenderScene::UpdateVisibleObjects() {
@@ -81,19 +81,23 @@ void RenderScene::UpdateVisibleObjects() {
     }
 }
 
-void RenderScene::UploadPerFrameResource() {
-    auto per_frame_buffer_object = resource->per_frame.object;
+void RenderScene::UploadGlobalResource() {
+    auto cam_data = resource->global.data.cam;
+    auto env_data = resource->global.data.env;
 
-    const Mat4x4f &view                        = camera.view();
-    const Mat4x4f &proj                        = camera.projection();
-    per_frame_buffer_object->cam.view          = view;
-    per_frame_buffer_object->cam.proj          = proj;
-    per_frame_buffer_object->cam.proj_view     = proj * view;
-    per_frame_buffer_object->env.ambient_color = Color4f::kWhite;
+    const Mat4x4f &view     = camera.view();
+    const Mat4x4f &proj     = camera.projection();
+    cam_data->view          = view;
+    cam_data->proj          = proj;
+    cam_data->proj_view     = proj * view;
+    cam_data->cam_pos       = camera.position;
+    env_data->ambient_color = Color4f::kWhite;
 
-    rhi->CopyBuffer(&resource->per_frame.staging_buffer,
-                    &resource->per_frame.buffer, sizeof(PerFrameBufferObject),
-                    resource->GetPerFrameDynamicOffsets()[0]);
+    size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
+    size_t env_size = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
+    rhi->CopyBuffer(&resource->global.staging_buffer, &resource->global.buffer,
+                    cam_size + env_size,
+                    resource->GlobalSSBODynamicOffsets()[0]);
 }
 
 }  // namespace lumi

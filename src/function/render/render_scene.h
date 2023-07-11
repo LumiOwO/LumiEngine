@@ -43,7 +43,7 @@ public:
 
     void UpdateVisibleObjects();
 
-    void UploadPerFrameResource();
+    void UploadGlobalResource();
 };
 
 }  // namespace lumi

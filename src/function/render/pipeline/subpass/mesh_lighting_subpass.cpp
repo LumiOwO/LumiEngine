@@ -20,8 +20,8 @@ void MeshLightingSubpass::CmdRender(VkCommandBuffer cmd) {
         batch.emplace_back(&object);
     }
 
-    auto     per_visible_buffer_object = resource->per_visible.object;
-    uint32_t first_instance_idx        = 0;
+    auto     cur_instance       = resource->mesh_instances.data.cur_instance;
+    uint32_t first_instance_idx = 0;
 
     for (auto& [material, material_batch] : drawcall_batch) {
         CmdBindMaterial(cmd, material);
@@ -30,11 +30,11 @@ void MeshLightingSubpass::CmdRender(VkCommandBuffer cmd) {
             // Write to staging buffer
             for (auto& desc : batch) {
                 RenderObject* object = desc->object;
-                per_visible_buffer_object->model_matrix =
+                cur_instance->model_matrix =
                     Mat4x4f::Translation(object->position) *  //
                     Mat4x4f(object->rotation) *               //
                     Mat4x4f::Scale(object->scale);
-                per_visible_buffer_object++;
+                cur_instance++;
             }
 
             uint32_t batch_size = (uint32_t)batch.size();
@@ -54,9 +54,10 @@ void MeshLightingSubpass::CmdRender(VkCommandBuffer cmd) {
     // Upload from staging buffer to gpu storage buffer
     // It's ok to do it here since the rendering has not commited yet.
     rhi->CopyBuffer(
-        &resource->per_visible.staging_buffer, &resource->per_visible.buffer,
-        sizeof(PerVisibleBufferObject) * resource->visible_object_descs.size(),
-        resource->GetPerVisibleDynamicOffsets()[0]);
+        &resource->mesh_instances.staging_buffer,
+        &resource->mesh_instances.buffer,
+        sizeof(MeshInstanceSSBO) * resource->visible_object_descs.size(),
+        resource->MeshInstanceSSBODynamicOffsets()[0]);
 }
 
 void MeshLightingSubpass::CmdBindMaterial(VkCommandBuffer cmd,
@@ -83,20 +84,22 @@ void MeshLightingSubpass::CmdBindMaterial(VkCommandBuffer cmd,
     vkCmdSetCullMode(cmd, material->cull_mode);
 
     vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            material->pipeline_layout, kPerMaterialSlot, 1,
+                            material->pipeline_layout,
+                            kDescriptorSetSlotMaterial, 1,
                             &material->descriptor_set.set, 0, nullptr);
 
-    auto per_frame_offsets = resource->GetPerFrameDynamicOffsets();
+    auto global_offsets = resource->GlobalSSBODynamicOffsets();
     vkCmdBindDescriptorSets(
         cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, material->pipeline_layout,
-        kPerFrameSlot, 1, &resource->per_frame.descriptor_set.set,
-        (uint32_t)per_frame_offsets.size(), per_frame_offsets.data());
+        kDescriptorSetSlotGlobal, 1, &resource->global.descriptor_set.set,
+        (uint32_t)global_offsets.size(), global_offsets.data());
 
-    auto per_visible_offsets = resource->GetPerVisibleDynamicOffsets();
+    auto mesh_instance_offsets = resource->MeshInstanceSSBODynamicOffsets();
     vkCmdBindDescriptorSets(
         cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, material->pipeline_layout,
-        kPerVisibleSlot, 1, &resource->per_visible.descriptor_set.set,
-        (uint32_t)per_visible_offsets.size(), per_visible_offsets.data());
+        kDescriptorSetSlotMeshInstance, 1,
+        &resource->mesh_instances.descriptor_set.set,
+        (uint32_t)mesh_instance_offsets.size(), mesh_instance_offsets.data());
 }
 
 }  // namespace lumi

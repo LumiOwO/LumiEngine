@@ -50,7 +50,7 @@ private:
         VkCommandPool   command_pool{};
         VkCommandBuffer command_buffer{};
         VkFence         upload_fence{};
-    } upload_context_ = {};
+    } upload_context_{};
 
 public:
     VkDevice device() const { return device_; }

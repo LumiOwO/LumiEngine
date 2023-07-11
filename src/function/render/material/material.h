@@ -8,9 +8,9 @@ namespace lumi {
 class RenderResource;
 
 enum DescriptorSetSlot {
-    kPerMaterialSlot = 0,
-    kPerFrameSlot,
-    kPerVisibleSlot,
+    kDescriptorSetSlotMaterial = 0,
+    kDescriptorSetSlotGlobal,
+    kDescriptorSetSlotMeshInstance,
 
     kDescriptorSetSlotsCount
 };

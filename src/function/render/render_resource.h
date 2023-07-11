@@ -43,36 +43,35 @@ struct RenderObjectDesc {
     Material*     material = nullptr;
 };
 
-enum PerFrameBindingSlot {
-    kPerFrameBindingCamera = 0,
-    kPerFrameBindingEnvironment,
+enum GlobalBindingSlot {
+    kGlobalBindingCamera = 0,
+    kGlobalBindingEnvironment,
 
-    kPerFrameBindingCount
+    kGlobalBindingCount
 };
 
-struct PerFrameBufferObject {
-    struct CameraData {
-        Mat4x4f view{};
-        Mat4x4f proj{};
-        Mat4x4f proj_view{};
-    } cam = {};
-
-    struct EnvironmentData {
-        Vec4f fog_color{};      // w is for exponent
-        Vec4f fog_distances{};  // x for min, y for max, zw unused.
-        Vec4f ambient_color{};
-        Vec4f sunlight_direction{};  // w for sun power
-        Vec4f sunlight_color{};
-    } env = {};
+struct CamDataSSBO {
+    Mat4x4f view{};
+    Mat4x4f proj{};
+    Mat4x4f proj_view{};
+    Vec3f   cam_pos{};
 };
 
-enum PerVisibleBindingSlot {
-    kPerVisibleBindingModelMatrix = 0,
-
-    kPerVisibleBindingCount
+struct EnvDataSSBO {
+    Vec4f fog_color{};      // w is for exponent
+    Vec4f fog_distances{};  // x for min, y for max, zw unused.
+    Vec4f ambient_color{};
+    Vec4f sunlight_direction{};  // w for sun power
+    Vec4f sunlight_color{};
 };
 
-struct PerVisibleBufferObject {
+enum MeshInstanceBindingSlot {
+    kMeshInstanceBinding = 0,
+
+    kMeshInstanceBindingCount
+};
+
+struct MeshInstanceSSBO {
     Mat4x4f model_matrix{};
 };
 
@@ -82,20 +81,25 @@ public:
     std::vector<RenderObjectDesc> visible_object_descs{};
 
     struct {
-        vk::DescriptorSet     descriptor_set{};
-        vk::AllocatedBuffer   staging_buffer{};
-        vk::AllocatedBuffer   buffer{};
-        void*                 data{};    // Mapped pointer to staging buffer
-        PerFrameBufferObject* object{};  // Pointers to current buffer object
-    } per_frame = {};
+        vk::DescriptorSet   descriptor_set{};
+        vk::AllocatedBuffer staging_buffer{};
+        vk::AllocatedBuffer buffer{};
+        struct {
+            void*        begin{};
+            CamDataSSBO* cam{};
+            EnvDataSSBO* env{};
+        } data{};  // Mapped pointers
+    } global{};
 
     struct {
-        vk::DescriptorSet       descriptor_set{};
-        vk::AllocatedBuffer     staging_buffer{};
-        vk::AllocatedBuffer     buffer{};
-        void*                   data{};    // Mapped pointer to staging buffer
-        PerVisibleBufferObject* object{};  // Pointers to current buffer object
-    } per_visible = {};
+        vk::DescriptorSet   descriptor_set{};
+        vk::AllocatedBuffer staging_buffer{};
+        vk::AllocatedBuffer buffer{};
+        struct {
+            void*             begin{};
+            MeshInstanceSSBO* cur_instance{};
+        } data{};  // Mapped pointers
+    } mesh_instances{};
 
     VkSampler sampler_nearest{};
     VkSampler sampler_linear{};
@@ -128,9 +132,9 @@ public:
 
     void ResetMappedPointers();
 
-    std::vector<uint32_t> GetPerFrameDynamicOffsets() const;
+    std::vector<uint32_t> GlobalSSBODynamicOffsets() const;
 
-    std::vector<uint32_t> GetPerVisibleDynamicOffsets() const;
+    std::vector<uint32_t> MeshInstanceSSBODynamicOffsets() const;
 
     VkShaderModule GetShaderModule(const std::string& name, ShaderType type);
 

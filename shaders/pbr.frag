@@ -12,7 +12,7 @@ layout(set = 0, binding = 2) uniform sampler2D normal_tex;
 layout(set = 0, binding = 3) uniform sampler2D occlusion_tex;
 layout(set = 0, binding = 4) uniform sampler2D emissive_tex;
 
-layout(set = 0, binding = 5) uniform _unused_name_per_material {
+layout(set = 0, binding = 5) uniform _unused_name_material {
     uint texcoord_set_base_color;
     uint texcoord_set_metallic_roughness;
     uint texcoord_set_normal;
@@ -30,13 +30,14 @@ layout(set = 0, binding = 5) uniform _unused_name_per_material {
     vec4  emissive_factor;
 };
 
-layout(set = 1, binding = 0) readonly buffer _unused_name_per_frame_camera {
+layout(set = 1, binding = 0) readonly buffer _unused_name_camera {
     mat4 view;
     mat4 proj;
     mat4 proj_view;
+    vec3 cam_pos;
 };
 
-layout(set = 1, binding = 1) readonly buffer _unused_name_per_frame_env {
+layout(set = 1, binding = 1) readonly buffer _unused_name_environment {
     vec4 fog_color;      // w is for exponent
     vec4 fog_distances;  // x for min, y for max, zw unused.
     vec4 ambient_color;

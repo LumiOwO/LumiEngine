@@ -27,8 +27,8 @@ void UnlitMaterial::CreatePipeline(RenderResource* resource,
 
     std::vector<VkDescriptorSetLayout> set_layouts{
         this->descriptor_set.layout,
-        resource->per_frame.descriptor_set.layout,
-        resource->per_visible.descriptor_set.layout,
+        resource->global.descriptor_set.layout,
+        resource->mesh_instances.descriptor_set.layout,
     };
 
     auto pipeline_layout_info           = vk::BuildPipelineLayoutCreateInfo();
