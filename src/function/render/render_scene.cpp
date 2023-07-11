@@ -72,6 +72,11 @@ void RenderScene::LoadScene() {
     helmet.rotation = Quaternion(ToRadians(Vec3f(90, 180, 0)));
     //helmet.material_name = "unlit";
     camera.position = {0, 0, -3};
+
+    // skybox
+    resource->CreateTextureCubeMapFromFile(
+        "skybox_specular", "textures/skybox/skybox_specular");
+
 }
 
 void RenderScene::UpdateVisibleObjects() {

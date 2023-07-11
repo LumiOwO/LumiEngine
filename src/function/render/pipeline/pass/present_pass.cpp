@@ -23,17 +23,17 @@ void PresentPass::Finalize() {
 void PresentPass::CreateAttachmentImages() {
     auto extent = rhi->extent();
 
-    vk::Texture2DCreateInfo info{};
-    info.width                 = (int)extent.width;
-    info.height                = (int)extent.height;
-    info.format                = VK_FORMAT_D32_SFLOAT;
-    info.image_usage           = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    info.memory_usage          = VMA_MEMORY_USAGE_GPU_ONLY;
-    info.aspect_flags          = VK_IMAGE_ASPECT_DEPTH_BIT;
+    vk::TextureCreateInfo info{};
+    info.width        = (int)extent.width;
+    info.height       = (int)extent.height;
+    info.format       = VK_FORMAT_D32_SFLOAT;
+    info.image_usage  = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    info.aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT;
     rhi->AllocateTexture2D(&depth_attachment_, &info);
 
     dtor_queue_swapchain_.Push(
-        [this]() { rhi->DestroyTexture2D(&depth_attachment_); });
+        [this]() { rhi->DestroyTexture(&depth_attachment_); });
 }
 
 void PresentPass::CreateRenderPass() {

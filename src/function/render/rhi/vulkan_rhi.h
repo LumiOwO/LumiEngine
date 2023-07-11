@@ -73,6 +73,10 @@ public:
 
     VkRenderPass main_render_pass() const { return main_render_pass_; }
 
+    float max_sampler_anisotropy() const {
+        return gpu_properties_.limits.maxSamplerAnisotropy;
+    }
+
     void SetMainRenderPass(VkRenderPass render_pass) {
         main_render_pass_ = render_pass;
     }
@@ -118,10 +122,9 @@ public:
 
     void UnmapMemory(vk::AllocatedBuffer* buffer);
 
-    vk::AllocatedBuffer AllocateBuffer(
-        size_t                   alloc_size,    //
-        VkBufferUsageFlags       buffer_usage,  //
-        VmaMemoryUsage           memory_usage);
+    vk::AllocatedBuffer AllocateBuffer(size_t             alloc_size,    //
+                                       VkBufferUsageFlags buffer_usage,  //
+                                       VmaMemoryUsage     memory_usage);
 
     void DestroyBuffer(vk::AllocatedBuffer* buffer);
 
@@ -132,14 +135,39 @@ public:
                     size_t size, size_t offset = 0);
 
     // Allocate VkImage & VkImageView, VkSampler is not accessed
-    void AllocateTexture2D(vk::Texture2D*           texture,
-                           vk::Texture2DCreateInfo* info);
+    void AllocateTexture2D(vk::Texture* texture, vk::TextureCreateInfo* info);
 
-    void DestroyTexture2D(vk::Texture2D* texture);
+    void AllocateTextureCubeMap(vk::Texture*           texture,
+                                vk::TextureCreateInfo* info,
+                                uint32_t               mip_levels);
+
+    void DestroyTexture(vk::Texture* texture);
 
     bool BeginRenderCommand();
 
     bool EndRenderCommand();
+
+    void CmdImageLayoutTransition(VkCommandBuffer    cmd,             //
+                                  VkImage            image,           //
+                                  VkImageAspectFlags aspect,          //
+                                  VkImageLayout      old_layout,      //
+                                  VkImageLayout      new_layout,      //
+                                  uint32_t           mip_levels = 1,  //
+                                  uint32_t           layers     = 1);
+
+    void CmdCopyBufferToImage(VkCommandBuffer    cmd,     //
+                              VkBuffer           buffer,  //
+                              VkImage            image,   //
+                              VkImageAspectFlags aspect,  //
+                              uint32_t           width,   //
+                              uint32_t           height,  //
+                              uint32_t           layers = 1);
+
+    void CmdGenerateMipMaps(VkCommandBuffer    cmd,         //
+                            vk::Texture*       texture,     //
+                            VkImageAspectFlags aspect,      //
+                            uint32_t           mip_levels,  //
+                            uint32_t           layers);
 
     size_t PaddedSizeOf(size_t size, size_t min_alignment) {
         if (min_alignment > 0) {

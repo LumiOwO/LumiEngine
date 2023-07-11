@@ -27,6 +27,7 @@
 namespace lumi {
 
 void RenderResource::Init() {
+    // Create descriptor allocator
     descriptor_allocator_.Init(rhi->device());
     descriptor_layout_cache_.Init(rhi->device());
     dtor_queue_resource_.Push([this]() {
@@ -34,100 +35,113 @@ void RenderResource::Init() {
         descriptor_allocator_.Finalize();
     });
 
-    // Global
-    {
-        // --- Resource buffer ---
-        size_t cam_size   = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
-        size_t env_size   = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
-        size_t alloc_size = rhi->kFramesInFlight * (cam_size + env_size);
-        global.buffer =
-            rhi->AllocateBuffer(alloc_size,
-                                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                VMA_MEMORY_USAGE_GPU_ONLY);
+    InitGlobalResource();
 
-        // Map resource staging buffer memory to pointer
-        global.staging_buffer =
-            rhi->AllocateBuffer(alloc_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                VMA_MEMORY_USAGE_CPU_ONLY);
-        global.data.begin = rhi->MapMemory(&global.staging_buffer);
+    InitMeshInstancesResource();
 
-        dtor_queue_resource_.Push([this]() {
-            rhi->UnmapMemory(&global.staging_buffer);
-            rhi->DestroyBuffer(&global.staging_buffer);
-            rhi->DestroyBuffer(&global.buffer);
-        });
+    InitDefaultTextures();
+}
 
-        // TODO: Create per frame textures
+void RenderResource::InitGlobalResource() {
+    // --- Resource buffer ---
+    size_t cam_size   = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
+    size_t env_size   = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
+    size_t alloc_size = rhi->kFramesInFlight * (cam_size + env_size);
+    global.buffer     = rhi->AllocateBuffer(
+        alloc_size,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
 
-        // --- Build descriptor set ---
-        auto editor = EditDescriptorSet(&global.descriptor_set);
+    // Map resource staging buffer memory to pointer
+    global.staging_buffer =
+        rhi->AllocateBuffer(alloc_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                            VMA_MEMORY_USAGE_CPU_ONLY);
+    global.data.begin = rhi->MapMemory(&global.staging_buffer);
 
-        editor.BindBuffer(
-            kGlobalBindingCamera,  //
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            global.buffer.buffer, 0, sizeof(CamDataSSBO));
-        editor.BindBuffer(
-            kGlobalBindingEnvironment,  //
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            global.buffer.buffer, 0, sizeof(EnvDataSSBO));
+    dtor_queue_resource_.Push([this]() {
+        rhi->UnmapMemory(&global.staging_buffer);
+        rhi->DestroyBuffer(&global.staging_buffer);
+        rhi->DestroyBuffer(&global.buffer);
+    });
 
-        editor.Execute();
-    }
-    // Mesh instances
-    {
-        // --- Resource buffer ---
-        size_t size       = rhi->PaddedSizeOfSSBO(sizeof(MeshInstanceSSBO) *
-                                                  kMaxVisibleObjects);
-        size_t alloc_size = rhi->kFramesInFlight * size;
-        mesh_instances.buffer =
-            rhi->AllocateBuffer(alloc_size,
-                                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-                                    VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-                                VMA_MEMORY_USAGE_GPU_ONLY);
+    // --- Build descriptor set ---
+    auto editor = EditDescriptorSet(&global.descriptor_set);
 
-        // Map resource staging buffer memory to pointer
-        mesh_instances.staging_buffer =
-            rhi->AllocateBuffer(alloc_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                VMA_MEMORY_USAGE_CPU_ONLY);
-        mesh_instances.data.begin =
-            rhi->MapMemory(&mesh_instances.staging_buffer);
+    editor.BindBuffer(kGlobalBindingCamera,  //
+                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                      global.buffer.buffer, 0, sizeof(CamDataSSBO));
+    editor.BindBuffer(kGlobalBindingEnvironment,  //
+                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                      global.buffer.buffer, 0, sizeof(EnvDataSSBO));
 
-        dtor_queue_resource_.Push([this]() {
-            rhi->UnmapMemory(&mesh_instances.staging_buffer);
-            rhi->DestroyBuffer(&mesh_instances.staging_buffer);
-            rhi->DestroyBuffer(&mesh_instances.buffer);
-        });
+    editor.Execute();
+}
 
-        // --- Build descriptor set ---
-        auto editor = EditDescriptorSet(&mesh_instances.descriptor_set);
+void RenderResource::InitMeshInstancesResource() {
+    // --- Resource buffer ---
+    size_t size =
+        rhi->PaddedSizeOfSSBO(sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
+    size_t alloc_size     = rhi->kFramesInFlight * size;
+    mesh_instances.buffer = rhi->AllocateBuffer(
+        alloc_size,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VMA_MEMORY_USAGE_GPU_ONLY);
 
-        editor.BindBuffer(
-            kMeshInstanceBinding, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-            VK_SHADER_STAGE_VERTEX_BIT, mesh_instances.buffer.buffer, 0,
-            sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
+    // Map resource staging buffer memory to pointer
+    mesh_instances.staging_buffer =
+        rhi->AllocateBuffer(alloc_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                            VMA_MEMORY_USAGE_CPU_ONLY);
+    mesh_instances.data.begin = rhi->MapMemory(&mesh_instances.staging_buffer);
 
-        editor.Execute();
-    }
+    dtor_queue_resource_.Push([this]() {
+        rhi->UnmapMemory(&mesh_instances.staging_buffer);
+        rhi->DestroyBuffer(&mesh_instances.staging_buffer);
+        rhi->DestroyBuffer(&mesh_instances.buffer);
+    });
 
-    // Global sampler
+    // --- Build descriptor set ---
+    auto editor = EditDescriptorSet(&mesh_instances.descriptor_set);
+
+    editor.BindBuffer(kMeshInstanceBinding,
+                      VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+                      VK_SHADER_STAGE_VERTEX_BIT, mesh_instances.buffer.buffer,
+                      0, sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
+
+    editor.Execute();
+}
+
+void RenderResource::InitDefaultTextures() {
+    // Samplers
     VkSamplerCreateInfo info_nearest =
         vk::BuildSamplerCreateInfo(VK_FILTER_NEAREST);
-    vkCreateSampler(rhi->device(), &info_nearest, nullptr, &sampler_nearest);
+    CreateSampler("nearest", &info_nearest);
 
     VkSamplerCreateInfo info_linear =
         vk::BuildSamplerCreateInfo(VK_FILTER_LINEAR);
-    vkCreateSampler(rhi->device(), &info_linear, nullptr, &sampler_linear);
+    CreateSampler("linear", &info_linear);
 
-    dtor_queue_resource_.Push([this]() {
-        vkDestroySampler(rhi->device(), sampler_nearest, nullptr);
-        vkDestroySampler(rhi->device(), sampler_linear, nullptr);
-    });
+    VkSamplerCreateInfo info_hdr = vk::BuildSamplerCreateInfo(
+        VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+    info_hdr.anisotropyEnable        = VK_TRUE;
+    info_hdr.maxAnisotropy           = rhi->max_sampler_anisotropy();
+    info_hdr.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    info_hdr.unnormalizedCoordinates = VK_FALSE;
+    info_hdr.compareEnable           = VK_FALSE;
+    info_hdr.compareOp               = VK_COMPARE_OP_ALWAYS;
+    info_hdr.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    info_hdr.minLod                  = 0.0f;
+    info_hdr.maxLod                  = 0.0f;
+    CreateSampler("hdr", &info_hdr);
 
-    // Default texture
-    vk::Texture2DCreateInfo tex_info{};
+    info_hdr.minLod     = 0.0f;
+    info_hdr.maxLod     = 6.0f;  // TODO: irradiance_texture_miplevels
+    info_hdr.mipLodBias = 0.0f;
+    CreateSampler("cubemap", &info_hdr);
+
+    // srgb
+    vk::TextureCreateInfo tex_info{};
     tex_info.width  = 1;
     tex_info.height = 1;
     tex_info.format = VK_FORMAT_R8G8B8A8_SRGB;
@@ -135,6 +149,7 @@ void RenderResource::Init() {
         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     tex_info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
     tex_info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+    tex_info.sampler_name = "nearest";
 
     // clang-format off
     CreateTexture2D("white", &tex_info, &Color4u8::kWhite);
@@ -144,9 +159,13 @@ void RenderResource::Init() {
     CreateTexture2D("blue",  &tex_info, &Color4u8::kBlue);
     // clang-format on
 
+    // linear
     tex_info.format         = VK_FORMAT_R8G8B8A8_UNORM;
     Color4u8 normal_default = Color4u8(128, 128, 255, 255);
     CreateTexture2D("normal_default", &tex_info, &normal_default);
+
+    // lut
+    CreateTextureHDRFromFile("lut_brdf", "textures/lut/brdf.hdr");
 }
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
@@ -214,12 +233,21 @@ VkShaderModule RenderResource::GetShaderModule(const std::string &name,
     }
 }
 
-vk::Texture2D *RenderResource::GetTexture2D(const std::string &name) {
+vk::Texture *RenderResource::GetTexture(const std::string &name) {
     auto it = textures_.find(name);
     if (it == textures_.end()) {
         return nullptr;
     } else {
         return &it->second;
+    }
+}
+
+VkSampler RenderResource::GetSampler(const std::string &name) {
+    auto it = samplers_.find(name);
+    if (it == samplers_.end()) {
+        return VK_NULL_HANDLE;
+    } else {
+        return it->second;
     }
 }
 
@@ -272,6 +300,19 @@ VkShaderModule RenderResource::CreateShaderModule(const std::string &name,
         vkDestroyShaderModule(rhi->device(), *p_shader, nullptr);
     });
     return *p_shader;
+}
+
+VkSampler RenderResource::CreateSampler(const std::string   &name,
+                                        VkSamplerCreateInfo *info) {
+    VkSampler res = GetSampler(name);
+    if (res) return res;
+
+    auto p_sampler = &samplers_[name];
+    vkCreateSampler(rhi->device(), info, nullptr, p_sampler);
+    dtor_queue_resource_.Push([this, p_sampler]() {
+        vkDestroySampler(rhi->device(), *p_sampler, nullptr);
+    });
+    return *p_sampler;
 }
 
 Material *RenderResource::CreateMaterial(const std::string &name,
@@ -382,11 +423,11 @@ Mesh *RenderResource::CreateMeshFromObjFile(const std::string &name,
     return &mesh;
 }
 
-vk::Texture2D *RenderResource::CreateTexture2DFromFile(const std::string &name,
-                                                       const fs::path &filepath,
-                                                       bool is_srgb) {
+vk::Texture *RenderResource::CreateTexture2DFromFile(const std::string &name,
+                                                     const fs::path &filepath,
+                                                     bool            is_srgb) {
 
-    vk::Texture2D *res = GetTexture2D(name);
+    vk::Texture *res = GetTexture(name);
     if (res) {
         LOG_WARNING("Create texture with an existed name {}", name);
         return res;
@@ -405,10 +446,6 @@ vk::Texture2D *RenderResource::CreateTexture2DFromFile(const std::string &name,
     VkFormat           format = VK_FORMAT_UNDEFINED;
     VkImageAspectFlags aspect = VK_IMAGE_ASPECT_NONE;
     switch (texChannels) {
-        case STBI_rgb:
-            format = is_srgb ? VK_FORMAT_R8G8B8_SRGB : VK_FORMAT_R8G8B8_UNORM;
-            aspect = VK_IMAGE_ASPECT_COLOR_BIT;
-            break;
         case STBI_rgb_alpha:
             format =
                 is_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
@@ -422,50 +459,157 @@ vk::Texture2D *RenderResource::CreateTexture2DFromFile(const std::string &name,
             LOG_ERROR("Unknown image format when loading {}", filepath);
     }
 
-    vk::Texture2DCreateInfo info{};
+    vk::TextureCreateInfo info{};
     info.width  = texWidth;
     info.height = texHeight;
     info.format = format;
     info.image_usage =
         VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    info.memory_usage      = VMA_MEMORY_USAGE_GPU_ONLY;
-    info.aspect_flags      = aspect;
-    info.filter_mode       = VK_FILTER_NEAREST;
-    vk::Texture2D *texture = CreateTexture2D(name, &info, pixels);
+    info.memory_usage    = VMA_MEMORY_USAGE_GPU_ONLY;
+    info.aspect_flags    = aspect;
+    info.sampler_name    = "nearest";
+    vk::Texture *texture = CreateTexture2D(name, &info, pixels);
 
     stbi_image_free(pixels);
     return texture;
 }
 
-vk::Texture2D *RenderResource::CreateTexture2D(
-    const std::string       &name,  //
-    vk::Texture2DCreateInfo *info,  //
-    const void              *pixels) {
+vk::Texture *RenderResource::CreateTextureHDRFromFile(
+    const std::string &name, const fs::path &filepath) {
 
-    vk::Texture2D *res = GetTexture2D(name);
+    vk::Texture *res = GetTexture(name);
     if (res) {
         LOG_WARNING("Create texture with an existed name {}", name);
         return res;
     }
 
-    vk::Texture2D *texture = &textures_[name];
-    rhi->AllocateTexture2D(texture, info);
-    UploadTexture2D(texture, pixels);
-
-    switch (info->filter_mode) {
-        case VK_FILTER_NEAREST:
-            texture->sampler = sampler_nearest;
-            break;
-        case VK_FILTER_LINEAR:
-            texture->sampler = sampler_linear;
-            break;
-        default:
-            LOG_ERROR("Unsupported filter mode when creating texture {}", name);
-            break;
+    int   texWidth, texHeight, texChannels;
+    auto &absolute_path =
+        filepath.is_absolute() ? filepath : LUMI_ASSETS_DIR / filepath;
+    float *pixels =
+        stbi_loadf(absolute_path.string().c_str(), &texWidth, &texHeight,
+                   &texChannels, STBI_rgb_alpha);  // required 4-channels
+    if (!pixels) {
+        LOG_ERROR("Failed to load texture file {}", filepath);
+        return nullptr;
     }
 
+    vk::TextureCreateInfo info{};
+    info.width  = texWidth;
+    info.height = texHeight;
+    info.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    info.image_usage =
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    info.memory_usage    = VMA_MEMORY_USAGE_GPU_ONLY;
+    info.aspect_flags    = VK_IMAGE_ASPECT_COLOR_BIT;
+    info.sampler_name    = "nearest";
+    vk::Texture *texture = CreateTexture2D(name, &info, pixels);
+
+    stbi_image_free(pixels);
+    return texture;
+}
+
+vk::Texture *RenderResource::CreateTextureCubeMapFromFile(
+    const std::string &name, const fs::path &basepath) {
+    vk::Texture *res = GetTexture(name);
+    if (res) {
+        LOG_WARNING("Create texture with an existed name {}", name);
+        return res;
+    }
+
+    auto &absolute_path =
+        basepath.is_absolute() ? basepath : LUMI_ASSETS_DIR / basepath;
+    // assume all textures have same width, height and format
+    int texWidth, texHeight, texChannels;
+
+    std::array<const char *, 6> faces = {
+        "_X+.hdr", "_X-.hdr", "_Z+.hdr", "_Z-.hdr", "_Y+.hdr", "_Y-.hdr",
+    };
+    std::array<void *, 6> image_datas{};
+    for (int i = 0; i < 6; i++) {
+        std::string &cur_name = absolute_path.string() + faces[i];
+        float       *pixels =
+            stbi_loadf(cur_name.c_str(), &texWidth, &texHeight, &texChannels,
+                       STBI_rgb_alpha);  // required 4-channels
+        if (!pixels) {
+            LOG_ERROR("Failed to load texture file {}", cur_name);
+            return nullptr;
+        }
+        image_datas[i] = pixels;
+    }
+
+    vk::TextureCreateInfo info{};
+    info.width       = texWidth;
+    info.height      = texHeight;
+    info.format      = VK_FORMAT_R32G32B32A32_SFLOAT;
+    info.image_usage = VK_IMAGE_USAGE_SAMPLED_BIT |
+                       VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+    info.sampler_name = "cubemap";
+
+    uint32_t mip_levels =
+        uint32_t(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
+
+    vk::Texture *texture =
+        CreateTextureCubeMap(name, &info, image_datas, mip_levels);
+
+    for (auto &data : image_datas) {
+        stbi_image_free(data);
+    }
+    return texture;
+}
+
+vk::Texture *RenderResource::CreateTexture2D(const std::string     &name,  //
+                                             vk::TextureCreateInfo *info,  //
+                                             const void            *pixels) {
+
+    vk::Texture *res = GetTexture(name);
+    if (res) {
+        LOG_WARNING("Create texture with an existed name {}", name);
+        return res;
+    }
+
+    vk::Texture *texture = &textures_[name];
+    rhi->AllocateTexture2D(texture, info);
+    UploadTexture2D(texture, pixels, info->aspect_flags);
+
+    VkSampler sampler = GetSampler(info->sampler_name);
+    if (!sampler) {
+        LOG_WARNING("Unknown sampler name {} when creating texture {}",
+                    info->sampler_name, name);
+    }
+    texture->sampler_name = info->sampler_name;
+
     dtor_queue_resource_.Push(
-        [this, texture]() { rhi->DestroyTexture2D(texture); });
+        [this, texture]() { rhi->DestroyTexture(texture); });
+    return texture;
+}
+
+vk::Texture *RenderResource::CreateTextureCubeMap(const std::string     &name,
+                                                  vk::TextureCreateInfo *info,
+                                                  std::array<void *, 6>  pixels,
+                                                  uint32_t mip_levels) {
+    vk::Texture *res = GetTexture(name);
+    if (res) {
+        LOG_WARNING("Create texture with an existed name {}", name);
+        return res;
+    }
+
+    vk::Texture *texture = &textures_[name];
+    rhi->AllocateTextureCubeMap(texture, info, mip_levels);
+    UploadTextureCubeMap(texture, pixels, info->aspect_flags, mip_levels);
+
+    VkSampler sampler = GetSampler(info->sampler_name);
+    if (!sampler) {
+        LOG_WARNING("Unknown sampler name {} when creating texture {}",
+                    info->sampler_name, name);
+    }
+    texture->sampler_name = info->sampler_name;
+
+    dtor_queue_resource_.Push(
+        [this, texture]() { rhi->DestroyTexture(texture); });
     return texture;
 }
 
@@ -548,18 +692,20 @@ void RenderResource::UploadMesh(Mesh *mesh) {
     }
 }
 
-void RenderResource::UploadTexture2D(vk::Texture2D *texture,
-                                     const void    *pixels) {
-    VkDeviceSize channels = 0;
+void RenderResource::UploadTexture2D(vk::Texture *texture, const void *pixels,
+                                     VkImageAspectFlags aspect) {
+
+    VkDeviceSize channels     = 0;
+    size_t       element_size = sizeof(char);
     switch (texture->format) {
-        case VK_FORMAT_R8G8B8_SRGB:
-        case VK_FORMAT_R8G8B8_UNORM:
-            channels = 3;
-            break;
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            element_size = sizeof(float);
         case VK_FORMAT_R8G8B8A8_SRGB:
         case VK_FORMAT_R8G8B8A8_UNORM:
             channels = 4;
             break;
+        case VK_FORMAT_R32_SFLOAT:
+            element_size = sizeof(float);
         case VK_FORMAT_R8_SRGB:
         case VK_FORMAT_R8_UNORM:
             channels = 1;
@@ -568,7 +714,8 @@ void RenderResource::UploadTexture2D(vk::Texture2D *texture,
             LOG_ERROR("Unknown texture format {}", texture->format);
             break;
     }
-    VkDeviceSize image_size = channels * texture->width * texture->height;
+    VkDeviceSize image_size =
+        channels * texture->width * texture->height * element_size;
 
     // allocate temporary buffer for holding texture data to upload
     vk::AllocatedBuffer staging_buffer =
@@ -581,61 +728,86 @@ void RenderResource::UploadTexture2D(vk::Texture2D *texture,
     // data -> staging buffer
     rhi->CopyBuffer(pixels, &staging_buffer, image_size);
 
-    // staging buffer -> image
-    rhi->ImmediateSubmit([texture, &staging_buffer](VkCommandBuffer cmd) {
-        VkImageSubresourceRange range{};
-        range.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        range.baseMipLevel   = 0;
-        range.levelCount     = 1;
-        range.baseArrayLayer = 0;
-        range.layerCount     = 1;
+    // staging buffer -> texture
+    rhi->ImmediateSubmit([this, texture, aspect,
+                          &staging_buffer](VkCommandBuffer cmd) {
+        // --- Transit image layout to transfer_dst ---
+        rhi->CmdImageLayoutTransition(cmd, texture->image.image, aspect,
+                                      VK_IMAGE_LAYOUT_UNDEFINED,
+                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-        VkImageMemoryBarrier imageBarrier_toTransfer{};
-        imageBarrier_toTransfer.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        imageBarrier_toTransfer.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        imageBarrier_toTransfer.newLayout =
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageBarrier_toTransfer.image            = texture->image.image;
-        imageBarrier_toTransfer.subresourceRange = range;
-        imageBarrier_toTransfer.srcAccessMask    = 0;
-        imageBarrier_toTransfer.dstAccessMask    = VK_ACCESS_TRANSFER_WRITE_BIT;
+        // --- Copy data to texture ---
+        rhi->CmdCopyBufferToImage(cmd, staging_buffer.buffer,
+                                  texture->image.image, aspect, texture->width,
+                                  texture->height);
 
-        // barrier the image into the transfer-receive layout
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                             VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0,
-                             nullptr, 1, &imageBarrier_toTransfer);
+        // --- Transit image layout to shader readable ---
+        rhi->CmdImageLayoutTransition(cmd, texture->image.image, aspect,
+                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    });
+}
 
-        VkExtent3D imageExtent{};
-        imageExtent.width  = (uint32_t)texture->width;
-        imageExtent.height = (uint32_t)texture->height;
-        imageExtent.depth  = 1;
+void RenderResource::UploadTextureCubeMap(vk::Texture          *texture,
+                                          std::array<void *, 6> pixels,
+                                          VkImageAspectFlags    aspect,
+                                          uint32_t              mip_levels) {
+    VkDeviceSize channels     = 0;
+    size_t       element_size = sizeof(char);
+    switch (texture->format) {
+        case VK_FORMAT_R32G32B32A32_SFLOAT:
+            element_size = sizeof(float);
+        case VK_FORMAT_R8G8B8A8_SRGB:
+        case VK_FORMAT_R8G8B8A8_UNORM:
+            channels = 4;
+            break;
+        case VK_FORMAT_R32_SFLOAT:
+            element_size = sizeof(float);
+        case VK_FORMAT_R8_SRGB:
+        case VK_FORMAT_R8_UNORM:
+            channels = 1;
+            break;
+        default:
+            LOG_ERROR("Unknown texture format {}", texture->format);
+            break;
+    }
+    VkDeviceSize image_size =
+        channels * texture->width * texture->height * element_size;
+    VkDeviceSize cube_size = image_size * 6;
 
-        VkBufferImageCopy copyRegion{};
-        copyRegion.bufferOffset                    = 0;
-        copyRegion.bufferRowLength                 = 0;
-        copyRegion.bufferImageHeight               = 0;
-        copyRegion.imageSubresource.aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT;
-        copyRegion.imageSubresource.mipLevel       = 0;
-        copyRegion.imageSubresource.baseArrayLayer = 0;
-        copyRegion.imageSubresource.layerCount     = 1;
-        copyRegion.imageExtent                     = imageExtent;
+    // allocate temporary buffer for holding texture data to upload
+    vk::AllocatedBuffer staging_buffer = rhi->AllocateBuffer(
+        cube_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
+    char *dst_data = (char *)rhi->MapMemory(&staging_buffer);
 
-        // copy the buffer into the image
-        vkCmdCopyBufferToImage(cmd, staging_buffer.buffer, texture->image.image,
-                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1,
-                               &copyRegion);
+    ScopeGuard guard = [this, &staging_buffer]() {
+        rhi->UnmapMemory(&staging_buffer);
+        rhi->DestroyBuffer(&staging_buffer);
+    };
 
-        VkImageMemoryBarrier imageBarrier_toReadable = imageBarrier_toTransfer;
-        imageBarrier_toReadable.oldLayout =
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-        imageBarrier_toReadable.newLayout =
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageBarrier_toReadable.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-        imageBarrier_toReadable.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        // barrier the image into the shader readable layout
-        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
-                             nullptr, 0, nullptr, 1, &imageBarrier_toReadable);
+    // data -> staging buffer
+    VkDeviceSize offset = 0;
+    for (int i = 0; i < 6; i++) {
+        char *src_data = (char *)pixels[i];
+        memcpy(dst_data + offset, src_data, image_size);
+        offset += image_size;
+    }
+
+    // staging buffer -> cubemap
+    rhi->ImmediateSubmit([this, texture, aspect, mip_levels,
+                          &staging_buffer](VkCommandBuffer cmd) {
+        // --- Transit image layout to transfer_dst ---
+        rhi->CmdImageLayoutTransition(
+            cmd, texture->image.image, aspect, VK_IMAGE_LAYOUT_UNDEFINED,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, mip_levels, 6);
+
+        // --- Copy mip level 0 data to texture ---
+        rhi->CmdCopyBufferToImage(cmd, staging_buffer.buffer,
+                                  texture->image.image, aspect, texture->width,
+                                  texture->height, 6);
+
+        // --- Generate mipmaps & transit to shader readable---
+        rhi->CmdGenerateMipMaps(cmd, texture, aspect, mip_levels, 6);
     });
 }
 
@@ -672,6 +844,7 @@ void RenderResource::LoadFromGLTFFile(const fs::path &filepath) {
         gltf_model
             .scenes[gltf_model.defaultScene > -1 ? gltf_model.defaultScene : 0];
     auto &mesh = meshes_[name];
+
     for (size_t i = 0; i < scene.nodes.size(); i++) {
         const tinygltf::Node node = gltf_model.nodes[scene.nodes[i]];
         GLTFLoadMesh(gltf_model, node, scene.nodes[i], &mesh);
@@ -683,12 +856,12 @@ void RenderResource::GLTFLoadTexture(const std::string &name,
                                      tinygltf::Model &gltf_model, int idx,
                                      bool is_srgb) {
     const std::string &tex_name = name + "_tex_" + std::to_string(idx);
-    if (GetTexture2D(tex_name) != nullptr) return;
+    if (GetTexture(tex_name) != nullptr) return;
 
     tinygltf::Texture &tex   = gltf_model.textures[idx];
     tinygltf::Image   &image = gltf_model.images[tex.source];
 
-    vk::Texture2DCreateInfo info{};
+    vk::TextureCreateInfo info{};
     info.width  = image.width;
     info.height = image.height;
     info.image_usage =
@@ -700,21 +873,18 @@ void RenderResource::GLTFLoadTexture(const std::string &name,
         case 1:
             info.format = is_srgb ? VK_FORMAT_R8_SRGB : VK_FORMAT_R8_UNORM;
             break;
-        case 3:
-            info.format =
-                is_srgb ? VK_FORMAT_R8G8B8_SRGB : VK_FORMAT_R8G8B8_UNORM;
-            break;
         case 4:
             info.format =
                 is_srgb ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
             break;
         default:
+            LOG_ERROR("Unsupported image component number {}", image.component);
             break;
     }
 
     if (tex.sampler == -1) {
         // No sampler specified, use a default one
-        info.filter_mode = VK_FILTER_LINEAR;
+        info.sampler_name = "linear";
     } else {
         tinygltf::Sampler &sampler = gltf_model.samplers[tex.sampler];
         switch (sampler.minFilter) {
@@ -722,12 +892,12 @@ void RenderResource::GLTFLoadTexture(const std::string &name,
             case TINYGLTF_TEXTURE_FILTER_NEAREST:
             case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST:
             case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST:
-                info.filter_mode = VK_FILTER_NEAREST;
+                info.sampler_name = "nearest";
                 break;
             case TINYGLTF_TEXTURE_FILTER_LINEAR:
             case TINYGLTF_TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR:
             case TINYGLTF_TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR:
-                info.filter_mode = VK_FILTER_LINEAR;
+                info.sampler_name = "linear";
                 break;
             default:
                 LOG_ERROR(

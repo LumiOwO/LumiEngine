@@ -16,7 +16,7 @@ private:
         kAttachmentCount
     };
 
-    vk::Texture2D depth_attachment_{};
+    vk::Texture depth_attachment_{};
 
     enum SubpassIndex {
         kSubpassMeshLighting = 0,

@@ -91,15 +91,15 @@ void UnlitMaterial::EditDescriptorSet(RenderResource* resource,
 
     // Update textures
     {
-        vk::Texture2D* texture = resource->GetTexture2D(base_color_tex_name);
+        vk::Texture* texture = resource->GetTexture(base_color_tex_name);
         if (texture == nullptr) {
-            texture = resource->GetTexture2D(kDefaultBaseColorTexName);
+            texture = resource->GetTexture(kDefaultBaseColorTexName);
         }
-        editor.BindImage(kBindingBaseColor,
-                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                         VK_SHADER_STAGE_FRAGMENT_BIT, texture->sampler,
-                         texture->image.image_view,
-                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        VkSampler sampler = resource->GetSampler(texture->sampler_name);
+        editor.BindImage(
+            kBindingBaseColor, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT, sampler, texture->image.image_view,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     editor.Execute(update_only);

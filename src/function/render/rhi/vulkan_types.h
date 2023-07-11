@@ -37,22 +37,22 @@ struct AllocatedImage {
     VkImageView   image_view{};
 };
 
-struct Texture2D {
+struct Texture {
     uint32_t           width{};
     uint32_t           height{};
     VkFormat           format{};
     vk::AllocatedImage image{};
-    VkSampler          sampler{};
+    std::string        sampler_name{};
 };
 
-struct Texture2DCreateInfo {
+struct TextureCreateInfo {
     uint32_t           width{};
     uint32_t           height{};
     VkFormat           format{};
     VkImageUsageFlags  image_usage{};
     VmaMemoryUsage     memory_usage{};
     VkImageAspectFlags aspect_flags{};
-    VkFilter           filter_mode{VK_FILTER_NEAREST};
+    std::string        sampler_name{};
 };
 
 struct DescriptorSet {
