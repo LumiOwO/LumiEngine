@@ -31,19 +31,19 @@ struct PBRMaterial : public Material {
     constexpr static const char* kShaderName                      = "pbr";
 
     struct Params {
-        uint32_t texcoord_set_base_color         = 0;
-        uint32_t texcoord_set_metallic_roughness = 0;
-        uint32_t texcoord_set_normal             = 0;
-        uint32_t texcoord_set_occlusion          = 0;
-        uint32_t texcoord_set_emissive           = 0;
-        uint32_t _padding_texcoord_set[3];
+        int32_t texcoord_set_base_color         = 0;
+        int32_t texcoord_set_metallic_roughness = 0;
+        int32_t texcoord_set_normal             = 0;
+        int32_t texcoord_set_occlusion          = 0;
+        int32_t texcoord_set_emissive           = 0;
+        int32_t _padding_texcoord_set[3];
 
-        uint32_t alpha_mode        = kAlphaModeOpaque;
-        float    alpha_cutoff      = 1.0f;
-        float    metallic_factor   = 1.0f;
-        float    roughness_factor  = 1.0f;
-        Vec4f    base_color_factor = Vec4f(1.0f);
-        Vec4f    emissive_factor   = Vec4f(1.0f);
+        int32_t alpha_mode        = kAlphaModeOpaque;
+        float   alpha_cutoff      = 1.0f;
+        float   metallic_factor   = 1.0f;
+        float   roughness_factor  = 1.0f;
+        Vec4f   base_color_factor = Vec4f(1.0f);
+        Vec4f   emissive_factor   = Vec4f(1.0f);
     };
 
     struct ParamsPack {

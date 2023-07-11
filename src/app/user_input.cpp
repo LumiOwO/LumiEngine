@@ -146,8 +146,12 @@ void UserInput::OnCursorPos(double xpos, double ypos) {
         float dx    = float(last_x_ - xpos) * 0.04f * speed;
         float dy    = float(ypos - last_y_) * 0.04f * speed;
 
-        auto& camera = scene_->camera;
-        camera.position += Vec3f(dx, dy, 0);
+        auto&   camera   = scene_->camera;
+        Mat4x4f rotation = camera.rotation();
+        Vec3f   right    = rotation[0];
+        Vec3f   up       = rotation[1];
+
+        camera.position += dx * right + dy * up;
     }
 
     last_x_ = xpos;

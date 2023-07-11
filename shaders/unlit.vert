@@ -15,7 +15,8 @@ layout(set = 1, binding = 0) readonly buffer _unused_name_camera {
 };
 
 struct MeshInstanceData {
-    mat4 model;
+    mat4 object_to_world;
+    mat4 world_to_object;
 };
 
 layout(set = 2, binding = 0) readonly buffer _unused_name_mesh_instance {
@@ -23,7 +24,8 @@ layout(set = 2, binding = 0) readonly buffer _unused_name_mesh_instance {
 };
 
 void main() {
-    mat4 model    = visible_objects[gl_InstanceIndex].model;
-    gl_Position   = proj_view * model * vec4(in_position, 1.0);
+    mat4 object_to_world = visible_objects[gl_InstanceIndex].object_to_world;
+
+    gl_Position   = proj_view * object_to_world * vec4(in_position, 1.0);
     out_texcoord0 = in_texcoord0;
 }

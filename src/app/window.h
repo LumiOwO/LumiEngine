@@ -73,77 +73,23 @@ public:
 private:
     // window event callbacks
     static void KeyCallback(GLFWwindow* window, int key, int scancode,
-                            int action, int mods) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
+                            int action, int mods);
 
-        for (auto& func : app->on_key_func_list_) {
-            func(key, scancode, action, mods);
-        }
-    }
     static void MouseButtonCallback(GLFWwindow* window, int button, int action,
-                                    int mods) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
+                                    int mods);
 
-        for (auto& func : app->on_mouse_button_func_list_) {
-            func(button, action, mods);
-        }
-    }
-    static void CursorPosCallback(GLFWwindow* window, double xpos,
-                                  double ypos) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
+    static void CursorPosCallback(GLFWwindow* window, double xpos, double ypos);
 
-        for (auto& func : app->on_cursor_pos_func_list_) {
-            func(xpos, ypos);
-        }
-    }
-    static void CursorEnterCallback(GLFWwindow* window, int entered) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
+    static void CursorEnterCallback(GLFWwindow* window, int entered);
 
-        for (auto& func : app->on_cursor_enter_func_list_) {
-            func(entered);
-        }
-    }
     static void ScrollCallback(GLFWwindow* window, double xoffset,
-                               double yoffset) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
+                               double yoffset);
 
-        for (auto& func : app->on_scroll_func_list_) {
-            func(xoffset, yoffset);
-        }
-    }
-    static void DropCallback(GLFWwindow* window, int count,
-                             const char** paths) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
+    static void DropCallback(GLFWwindow* window, int count, const char** paths);
 
-        for (auto& func : app->on_drop_func_list_) {
-            func(count, paths);
-        }
-    }
-    static void WindowSizeCallback(GLFWwindow* window, int width, int height) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
+    static void WindowSizeCallback(GLFWwindow* window, int width, int height);
 
-        for (auto& func : app->on_window_size_func_list_) {
-            func(width, height);
-        }
-    }
-    static void WindowCloseCallback(GLFWwindow* window) {
-        Window* app = (Window*)glfwGetWindowUserPointer(window);
-        if (!app) return;
-
-        // callbacks before close
-        for (auto& func : app->on_window_close_func_list_) {
-            func();
-        }
-        // tell glfw that window should close
-        glfwSetWindowShouldClose(window, true);
-    }
+    static void WindowCloseCallback(GLFWwindow* window);
 };
 
 }  // namespace lumi

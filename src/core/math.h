@@ -169,6 +169,8 @@ struct Vec3f : public glm::vec3 {
         return *this;
     }
 
+    Vec3f Normalize() const { return glm::normalize(*this); }
+
     static const Vec3f kZero;
     static const Vec3f kUnitX;
     static const Vec3f kUnitY;
@@ -465,6 +467,8 @@ struct Quaternion : public glm::quat {
     }
 
     static Quaternion Rotation(Vec3f eulers) { return Quaternion(eulers); }
+
+    Quaternion Inverse() const { return glm::inverse(*this); }
 };
 
 inline constexpr Quaternion Quaternion::kZero     = Quaternion(0, 0, 0, 0);

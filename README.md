@@ -40,3 +40,4 @@ Then open the Visual Studio solution in the build directory and build it manuall
 - [ ] Defered shading
 - [ ] MSAA
 - [ ] Instanced rendering
+- [ ] srgb image loading

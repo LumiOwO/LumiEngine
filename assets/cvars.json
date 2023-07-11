@@ -1,12 +1,17 @@
 {
-  "ambient": {
-    "#is_color": true,
-    "#value": [1.0,1.0,1.0]
+  "debug": {
+    "pbr_idx": {
+      "#max": 6.0,
+      "#min": 0.0,
+      "#value": 0
+    }
   },
-  "clear_color": {
-    "#advanced": true,
-    "#is_color": true,
-    "#value": [0.0470588244497776,0.0470588244497776,0.0470588244497776]
+  "env": {
+    "sunlight_color": {
+      "#is_color": true,
+      "#value": [1.0,1.0,1.0]
+    },
+    "sunlight_dir": [0.0,-1.0,0.0]
   },
   "view_speed": {
     "move": {

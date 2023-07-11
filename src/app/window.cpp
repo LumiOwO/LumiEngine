@@ -71,6 +71,89 @@ void Window::Finalize() {
 
 bool Window::ShouldClose() const { return glfwWindowShouldClose(glfw_window_); }
 
+
+void Window::KeyCallback(GLFWwindow* window, int key, int scancode, int action,
+                        int mods) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    for (auto& func : app->on_key_func_list_) {
+        func(key, scancode, action, mods);
+    }
+}
+
+void Window::MouseButtonCallback(GLFWwindow* window, int button, int action,
+                                int mods) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    for (auto& func : app->on_mouse_button_func_list_) {
+        func(button, action, mods);
+    }
+}
+
+void Window::CursorPosCallback(GLFWwindow* window, double xpos, double ypos) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    for (auto& func : app->on_cursor_pos_func_list_) {
+        func(xpos, ypos);
+    }
+}
+
+void Window::CursorEnterCallback(GLFWwindow* window, int entered) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    for (auto& func : app->on_cursor_enter_func_list_) {
+        func(entered);
+    }
+}
+
+void Window::ScrollCallback(GLFWwindow* window, double xoffset,
+                            double yoffset) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    if (ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)) {
+        return;
+    }
+
+    for (auto& func : app->on_scroll_func_list_) {
+        func(xoffset, yoffset);
+    }
+}
+
+void Window::DropCallback(GLFWwindow* window, int count, const char** paths) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    for (auto& func : app->on_drop_func_list_) {
+        func(count, paths);
+    }
+}
+
+void Window::WindowSizeCallback(GLFWwindow* window, int width, int height) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    for (auto& func : app->on_window_size_func_list_) {
+        func(width, height);
+    }
+}
+
+void Window::WindowCloseCallback(GLFWwindow* window) {
+    Window* app = (Window*)glfwGetWindowUserPointer(window);
+    if (!app) return;
+
+    // callbacks before close
+    for (auto& func : app->on_window_close_func_list_) {
+        func();
+    }
+    // tell glfw that window should close
+    glfwSetWindowShouldClose(window, true);
+}
+
 VkResult Window::CreateSurface(VkInstance instance, VkSurfaceKHR* p_surface) {
     return glfwCreateWindowSurface(instance, glfw_window_, NULL, p_surface);
 }

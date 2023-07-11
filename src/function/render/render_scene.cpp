@@ -4,6 +4,8 @@
 #include "material/pbr_material.h"
 #include "material/unlit_material.h"
 
+#include "function/cvars/cvar_system.h"
+
 namespace lumi {
 
 void RenderScene::LoadScene() {
@@ -83,7 +85,6 @@ void RenderScene::UpdateVisibleObjects() {
 
 void RenderScene::UploadGlobalResource() {
     auto cam_data = resource->global.data.cam;
-    auto env_data = resource->global.data.env;
 
     const Mat4x4f &view     = camera.view();
     const Mat4x4f &proj     = camera.projection();
@@ -91,7 +92,14 @@ void RenderScene::UploadGlobalResource() {
     cam_data->proj          = proj;
     cam_data->proj_view     = proj * view;
     cam_data->cam_pos       = camera.position;
-    env_data->ambient_color = Color4f::kWhite;
+
+    auto env_data = resource->global.data.env;
+
+    env_data->sunlight_color =
+        Vec4f(cvars::GetVec3f("env.sunlight_color").value(), 1.0f);
+    env_data->sunlight_dir =
+        cvars::GetVec3f("env.sunlight_dir").value().Normalize();
+    env_data->debug_idx = cvars::GetInt("debug.pbr_idx").value();
 
     size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
     size_t env_size = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();

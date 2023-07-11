@@ -58,11 +58,11 @@ struct CamDataSSBO {
 };
 
 struct EnvDataSSBO {
-    Vec4f fog_color{};      // w is for exponent
-    Vec4f fog_distances{};  // x for min, y for max, zw unused.
-    Vec4f ambient_color{};
-    Vec4f sunlight_direction{};  // w for sun power
     Vec4f sunlight_color{};
+    Vec3f sunlight_dir{};
+    float _padding_sunlight_dir{};
+
+    int32_t debug_idx{};
 };
 
 enum MeshInstanceBindingSlot {
@@ -72,7 +72,8 @@ enum MeshInstanceBindingSlot {
 };
 
 struct MeshInstanceSSBO {
-    Mat4x4f model_matrix{};
+    Mat4x4f object_to_world{};
+    Mat4x4f world_to_object{};
 };
 
 class RenderResource {
