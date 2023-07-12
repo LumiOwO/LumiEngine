@@ -1,19 +1,22 @@
 {
   "debug": {
-    "pbr_idx": {
-      "#max": 6.0,
-      "#min": 0.0,
+    "shading": {
+      "#options": ["Combined","Diffuse","Specular","IBL Diffuse","IBL Specular","Base Color Map","Metallic Map","Roughness Map","Normal Map","Occlusion Map","Emissive Map","F","G","D"],
       "#value": 0
     }
   },
   "env": {
+    "skybox": {
+      "#options": ["Irradiance","Specular","None"],
+      "#value": 0
+    },
     "sunlight": {
       "color": {
         "#is_color": true,
         "#value": [1.0,1.0,1.0]
       },
-      "dir": [-15.375,0.25,52.5],
-      "intensity": 5.0
+      "dir": [-0.10158699750900269,-0.9109809994697571,0.3997420072555542],
+      "intensity": 3.0
     }
   },
   "view_speed": {

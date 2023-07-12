@@ -357,7 +357,7 @@ void VulkanRHI::AllocateTexture2D(vk::Texture*           texture,
                                &texture->image.image_view));
 }
 
-void VulkanRHI::AllocateTextureCubeMap(vk::Texture*           texture,
+void VulkanRHI::AllocateTextureCubemap(vk::Texture*           texture,
                                        vk::TextureCreateInfo* info,
                                        uint32_t               mip_levels) {
     texture->width  = info->width;

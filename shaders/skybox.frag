@@ -1,10 +1,15 @@
 #version 460
 
-layout(set = 0, binding = 0) uniform samplerCube skybox_cubemap;
+layout(set = 0, binding = 0) uniform samplerCube skybox_irradiance;
+layout(set = 0, binding = 1) uniform samplerCube skybox_specular;
 
 layout(location = 0) in vec3 sample_position;
 
 layout(location = 0) out vec4 out_color;
+
+layout(push_constant) uniform _unused_name_constants {
+    int option;
+};
 
 // From http://filmicworlds.com/blog/filmic-tonemapping-operators/
 vec3 Uncharted2Tonemap(vec3 color) {
@@ -29,7 +34,19 @@ vec3 Tonemap(vec3 color) {
 }
 
 void main() {
-    vec3 color = textureLod(skybox_cubemap, sample_position, 0.0).rgb;
-    color = Tonemap(color);
-    out_color  = vec4(color, 1.0);
+    vec3 color;
+    switch (option) {
+        case 2:
+            discard;
+        case 1:
+            color = textureLod(skybox_specular, sample_position, 0.0).rgb;
+            break;
+        case 0:
+        default:
+            color = textureLod(skybox_irradiance, sample_position, 0.0).rgb;
+            break;
+    }
+
+    color     = Tonemap(color);
+    out_color = vec4(color, 1.0);
 }

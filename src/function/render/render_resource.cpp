@@ -35,11 +35,11 @@ void RenderResource::Init() {
         descriptor_allocator_.Finalize();
     });
 
+    InitDefaultTextures();
+
     InitGlobalResource();
 
     InitMeshInstancesResource();
-
-    InitDefaultTextures();
 }
 
 void RenderResource::InitGlobalResource() {
@@ -65,6 +65,10 @@ void RenderResource::InitGlobalResource() {
     });
 
     // --- Build descriptor set ---
+    EditGlobalDescriptorSet(false);
+}
+
+void RenderResource::EditGlobalDescriptorSet(bool update_only) {
     auto editor = BeginEditDescriptorSet(&global.descriptor_set);
 
     editor.BindBuffer(kGlobalBindingCamera,  //
@@ -76,7 +80,51 @@ void RenderResource::InitGlobalResource() {
                       VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                       global.buffer.buffer, 0, sizeof(EnvDataSSBO));
 
-    editor.Execute();
+    // Update textures
+    {
+        vk::Texture *texture =
+            GetTexture(SkyboxMaterial::kDefaultSkyboxTexName);
+        if (global.skybox_material != nullptr) {
+            vk::Texture *temp =
+                GetTexture(global.skybox_material->irradiance_cubemap_name);
+            if (temp != nullptr) texture = temp;
+        }
+        VkSampler sampler = GetSampler(texture->sampler_name);
+        editor.BindImage(kGlobalBindingSkyboxIrradiance,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    {
+        vk::Texture *texture =
+            GetTexture(SkyboxMaterial::kDefaultSkyboxTexName);
+        if (global.skybox_material != nullptr) {
+            vk::Texture *temp =
+                GetTexture(global.skybox_material->specular_cubemap_name);
+            if (temp != nullptr) texture = temp;
+        }
+        VkSampler sampler = GetSampler(texture->sampler_name);
+        editor.BindImage(kGlobalBindingSkyboxSpecular,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+    {
+        vk::Texture *texture = GetTexture("lut_brdf");
+        if (texture == nullptr) {
+            LOG_ERROR("Texture for brdf lookup not found!");
+            return;
+        }
+        VkSampler sampler = GetSampler(texture->sampler_name);
+        editor.BindImage(
+            kGlobalBindingLutBrdf, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_SHADER_STAGE_FRAGMENT_BIT, sampler, texture->image.image_view,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    }
+
+    editor.Execute(update_only);
 }
 
 void RenderResource::InitMeshInstancesResource() {
@@ -109,7 +157,7 @@ void RenderResource::InitMeshInstancesResource() {
                       VK_SHADER_STAGE_VERTEX_BIT, mesh_instances.buffer.buffer,
                       0, sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
 
-    editor.Execute();
+    editor.Execute(false);
 }
 
 void RenderResource::InitDefaultTextures() {
@@ -175,12 +223,7 @@ void RenderResource::InitDefaultTextures() {
     std::array<void *, 6> cubemap_empty_data = {
         &gray, &gray, &gray, &gray, &gray, &gray,
     };
-    CreateTextureCubeMap("skybox_empty", &tex_info, cubemap_empty_data, 1);
-    // TODO: skybox
-    //CreateTextureCubeMapFromFile("skybox_specular",
-    //                             "textures/skybox/skybox_specular");
-    //CreateTextureCubeMapFromFile("skybox_irradiance",
-    //                            "textures/skybox/skybox_irradiance");
+    CreateTextureCubemap("skybox_empty", &tex_info, cubemap_empty_data, 1);
 }
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
@@ -217,24 +260,30 @@ void RenderResource::ResetMappedPointers() {
     }
 }
 
+void RenderResource::UpdateGlobalDescriptorSet() {
+    EditGlobalDescriptorSet(true);
+
+    global.skybox_material->Upload(this);
+}
+
 std::vector<uint32_t> RenderResource::GlobalSSBODynamicOffsets() const {
-    auto res = std::vector<uint32_t>(kGlobalBindingCount);
+    auto res = std::vector<uint32_t>{};
 
     size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
     size_t env_size = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
 
-    res[0] = (uint32_t)(cam_size + env_size) * rhi->frame_idx();
-    res[1] = res[0] + (uint32_t)cam_size;
+    res.emplace_back(uint32_t(cam_size + env_size) * rhi->frame_idx());
+    res.emplace_back(res.back() + uint32_t(cam_size));
     return res;
 }
 
 std::vector<uint32_t> RenderResource::MeshInstanceSSBODynamicOffsets() const {
-    auto res = std::vector<uint32_t>(kMeshInstanceBindingCount);
+    auto res = std::vector<uint32_t>{};
 
     size_t size =
         rhi->PaddedSizeOfSSBO(sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
 
-    res[0] = (uint32_t)size * rhi->frame_idx();
+    res.emplace_back(uint32_t(size) * rhi->frame_idx());
     return res;
 }
 
@@ -522,7 +571,7 @@ vk::Texture *RenderResource::CreateTextureHDRFromFile(
     return texture;
 }
 
-vk::Texture *RenderResource::CreateTextureCubeMapFromFile(
+vk::Texture *RenderResource::CreateTextureCubemapFromFile(
     const std::string &name, const fs::path &basepath) {
     vk::Texture *res = GetTexture(name);
     if (res) {
@@ -566,7 +615,7 @@ vk::Texture *RenderResource::CreateTextureCubeMapFromFile(
         uint32_t(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
     vk::Texture *texture =
-        CreateTextureCubeMap(name, &info, image_datas, mip_levels);
+        CreateTextureCubemap(name, &info, image_datas, mip_levels);
 
     for (auto &data : image_datas) {
         stbi_image_free(data);
@@ -600,7 +649,7 @@ vk::Texture *RenderResource::CreateTexture2D(const std::string     &name,  //
     return texture;
 }
 
-vk::Texture *RenderResource::CreateTextureCubeMap(const std::string     &name,
+vk::Texture *RenderResource::CreateTextureCubemap(const std::string     &name,
                                                   vk::TextureCreateInfo *info,
                                                   std::array<void *, 6> &pixels,
                                                   uint32_t mip_levels) {
@@ -611,8 +660,8 @@ vk::Texture *RenderResource::CreateTextureCubeMap(const std::string     &name,
     }
 
     vk::Texture *texture = &textures_[name];
-    rhi->AllocateTextureCubeMap(texture, info, mip_levels);
-    UploadTextureCubeMap(texture, pixels, info->aspect_flags, mip_levels);
+    rhi->AllocateTextureCubemap(texture, info, mip_levels);
+    UploadTextureCubemap(texture, pixels, info->aspect_flags, mip_levels);
 
     VkSampler sampler = GetSampler(info->sampler_name);
     if (!sampler) {
@@ -761,7 +810,7 @@ void RenderResource::UploadTexture2D(vk::Texture *texture, const void *pixels,
     });
 }
 
-void RenderResource::UploadTextureCubeMap(vk::Texture           *texture,
+void RenderResource::UploadTextureCubemap(vk::Texture           *texture,
                                           std::array<void *, 6> &pixels,
                                           VkImageAspectFlags     aspect,
                                           uint32_t               mip_levels) {

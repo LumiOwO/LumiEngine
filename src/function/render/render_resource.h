@@ -1,6 +1,7 @@
 #pragma once
 
 #include "material/material.h"
+#include "material/skybox_material.h"
 #include "rhi/vulkan_descriptors.h"
 #include "rhi/vulkan_rhi.h"
 
@@ -46,6 +47,9 @@ struct RenderObjectDesc {
 enum GlobalBindingSlot {
     kGlobalBindingCamera = 0,
     kGlobalBindingEnvironment,
+    kGlobalBindingSkyboxIrradiance,
+    kGlobalBindingSkyboxSpecular,
+    kGlobalBindingLutBrdf,
 
     kGlobalBindingCount
 };
@@ -58,7 +62,8 @@ struct CamDataSSBO {
 };
 
 struct EnvDataSSBO {
-    Vec4f sunlight_color{};
+    Vec3f sunlight_color{};
+    float sunlight_intensity{};
     Vec3f sunlight_dir{};
     float _padding_sunlight_dir{};
 
@@ -90,6 +95,8 @@ public:
             CamDataSSBO* cam{};
             EnvDataSSBO* env{};
         } data{};  // Mapped pointers
+
+        SkyboxMaterial* skybox_material{};
     } global{};
 
     struct {
@@ -134,6 +141,8 @@ public:
 
     void ResetMappedPointers();
 
+    void UpdateGlobalDescriptorSet();
+
     std::vector<uint32_t> GlobalSSBODynamicOffsets() const;
 
     std::vector<uint32_t> MeshInstanceSSBODynamicOffsets() const;
@@ -170,7 +179,7 @@ public:
                                  vk::TextureCreateInfo* info,  //
                                  const void*            pixels);
 
-    vk::Texture* CreateTextureCubeMap(const std::string&     name,
+    vk::Texture* CreateTextureCubemap(const std::string&     name,
                                       vk::TextureCreateInfo* info,
                                       std::array<void*, 6>&  pixels,
                                       uint32_t               mip_levels);
@@ -182,7 +191,7 @@ public:
     vk::Texture* CreateTextureHDRFromFile(const std::string& name,
                                           const fs::path&    filepath);
 
-    vk::Texture* CreateTextureCubeMapFromFile(const std::string& name,
+    vk::Texture* CreateTextureCubemapFromFile(const std::string& name,
                                               const fs::path&    basepath);
 
     void LoadFromGLTFFile(const fs::path& filepath);
@@ -201,6 +210,8 @@ public:
 private:
     void InitGlobalResource();
 
+    void EditGlobalDescriptorSet(bool update_only);
+
     void InitMeshInstancesResource();
 
     void InitDefaultTextures();
@@ -213,7 +224,7 @@ private:
     void UploadTexture2D(vk::Texture* texture, const void* pixels,
                          VkImageAspectFlags aspect);
 
-    void UploadTextureCubeMap(vk::Texture*          texture,
+    void UploadTextureCubemap(vk::Texture*          texture,
                               std::array<void*, 6>& pixels,
                               VkImageAspectFlags aspect, uint32_t mip_levels);
 

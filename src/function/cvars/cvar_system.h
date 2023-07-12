@@ -36,13 +36,14 @@ enum CVarType {
 };
 
 struct CVarDesc {
-    std::string name{};
-    std::string description{};
-    CVarFlags   flags{};
-    CVarType    type{};
-    float       min{};
-    float       max{};
-    int32_t     index_{};
+    std::string              name{};
+    std::string              description{};
+    CVarFlags                flags{};
+    CVarType                 type{};
+    float                    min{};
+    float                    max{};
+    std::vector<std::string> options{};
+    int32_t                  index_{};
 };
 
 template <typename T>

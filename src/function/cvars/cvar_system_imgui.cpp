@@ -12,7 +12,7 @@ namespace lumi {
 // definitions of cvars namespace functions
 namespace cvars {
 
-void CacheCVar(CVarSystem::ImGuiCVarTreeNode* root, CVarDesc* desc) {
+static void CacheCVar(CVarSystem::ImGuiCVarTreeNode* root, CVarDesc* desc) {
     const std::string& name      = desc->name;
     size_t             start_pos = 0;
 
@@ -32,7 +32,7 @@ void CacheCVar(CVarSystem::ImGuiCVarTreeNode* root, CVarDesc* desc) {
     p->descs.insert(desc);
 }
 
-void UpdateCachedCVars() {
+static void UpdateCachedCVars() {
     CVarSystem& cvar_system = CVarSystem::Instance();
 
     CVarSystem::ImGuiContext& ctx = cvar_system.imgui_ctx;
@@ -52,7 +52,20 @@ void UpdateCachedCVars() {
     };
 }
 
-void ImGuiShowCVarsDesc(CVarDesc* desc) {
+static bool StringCombo(const char* label, int* current_item,
+                        const std::vector<std::string>& items, int items_count,
+                        int height_in_items = -1) {
+    return ImGui::Combo(
+        label, current_item,
+        [](void* data, int idx, const char** out_text) {
+            auto& items = *(const std::vector<std::string>*)data;
+            *out_text   = items[idx].c_str();
+            return true;
+        },
+        (void*)&items, items_count, height_in_items);
+}
+
+static void ImGuiShowCVarsDesc(CVarDesc* desc) {
     ImGui::PushID(desc);
     ImGui::PushItemWidth(ImGui::GetFontSize() * -0.01f);
     if (desc->flags & CVarFlags::kReadOnly) {
@@ -79,9 +92,14 @@ void ImGuiShowCVarsDesc(CVarDesc* desc) {
     } else if (desc->type == CVarType::kString) {
         ImGui::InputText("", cvar_system.GetPtr<StringType>(desc->index_));
     } else if (desc->type == CVarType::kInt) {
-        ImGui::DragInt("", cvar_system.GetPtr<IntType>(desc->index_), v_speed,
-                       (int)v_min, (int)v_max, "%d",
-                       ImGuiSliderFlags_AlwaysClamp);
+        if (desc->options.empty()) {
+            ImGui::DragInt("", cvar_system.GetPtr<IntType>(desc->index_),
+                           v_speed, (int)v_min, (int)v_max, "%d",
+                           ImGuiSliderFlags_AlwaysClamp);
+        } else {
+            StringCombo("", cvar_system.GetPtr<IntType>(desc->index_),
+                        desc->options, (int)desc->options.size());
+        }
     } else if (desc->type == CVarType::kFloat) {
         ImGui::DragFloat("", cvar_system.GetPtr<FloatType>(desc->index_),
                          v_speed, v_min, v_max, "%.3f",
@@ -115,7 +133,7 @@ void ImGuiShowCVarsDesc(CVarDesc* desc) {
     }
 }
 
-void ShowCVarsInCurrentNode(CVarSystem::ImGuiCVarTreeNode* node) {
+static void ShowCVarsInCurrentNode(CVarSystem::ImGuiCVarTreeNode* node) {
     if (node->name.empty()) {
         // root node
         if (node->descs.empty()) {
@@ -155,7 +173,7 @@ void ShowCVarsInCurrentNode(CVarSystem::ImGuiCVarTreeNode* node) {
     }
 }
 
-void ShowCachedCVars(CVarSystem::ImGuiCVarTreeNode* node) {
+static void ShowCachedCVars(CVarSystem::ImGuiCVarTreeNode* node) {
     ImGui::PushID(node);
     ScopeGuard guard = []() { ImGui::PopID(); };
 

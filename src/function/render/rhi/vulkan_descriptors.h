@@ -104,7 +104,7 @@ public:
                                 VkImageView        imageView,   //
                                 VkImageLayout      imageLayout);
 
-    bool Execute(bool update_only = false);
+    bool Execute(bool update_only);
 
 private:
     std::vector<VkDescriptorSetLayoutBinding> bindings_{};

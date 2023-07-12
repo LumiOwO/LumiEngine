@@ -31,8 +31,13 @@ Json CVarStorage<T>::ToJson() {
         (p_desc->description != p_desc->name) ? p_desc->description : "";
     CVarFlags flags = p_desc->flags;
 
-    if (description.empty() && flags == CVarFlags::kNone &&
-        p_desc->min == kNegInf && p_desc->max == kPosInf) {
+    auto IsPrimitive = [this, &description, flags]() {
+        return description.empty() && flags == CVarFlags::kNone &&
+               p_desc->min == kNegInf && p_desc->max == kPosInf &&
+               p_desc->options.empty();
+    };
+
+    if (IsPrimitive()) {
         // primitive
         json = value;
     } else {
@@ -60,6 +65,9 @@ Json CVarStorage<T>::ToJson() {
         }
         if (!is_unit && !is_color && p_desc->max != kPosInf) {
             json["#max"] = p_desc->max;
+        }
+        if (!p_desc->options.empty()) {
+            json["#options"] = p_desc->options;
         }
     }
 
@@ -181,13 +189,21 @@ void CVarSystem::CreateCVarsFromJsonLeaf(const Json&        leaf,
             min = 0.f;
             max = 1.f;
         }
+        if (leaf.contains("#options") && !j_value.is_number_integer()) {
+            LOG_WARNING(
+                "{}: \"#options\" key is only for integer console variable",
+                name);
+        }
     }
 
     if (j_value.is_boolean()) {
         CreateCVar<cvars::BoolType>(name, j_value, description, flags, min,
                                     max);
     } else if (j_value.is_number_integer()) {
-        CreateCVar<cvars::IntType>(name, j_value, description, flags, min, max);
+        using Options = std::vector<std::string>;
+        Options options = leaf.value("#options", Options{});
+        CreateCVar<cvars::IntType>(name, j_value, description, flags, min, max,
+                                   options);
     } else if (j_value.is_number_float()) {
         CreateCVar<cvars::FloatType>(name, j_value, description, flags, min,
                                      max);

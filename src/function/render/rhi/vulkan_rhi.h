@@ -130,7 +130,7 @@ public:
     // Allocate VkImage & VkImageView, VkSampler is not accessed
     void AllocateTexture2D(vk::Texture* texture, vk::TextureCreateInfo* info);
 
-    void AllocateTextureCubeMap(vk::Texture*           texture,
+    void AllocateTextureCubemap(vk::Texture*           texture,
                                 vk::TextureCreateInfo* info,
                                 uint32_t               mip_levels);
 

@@ -122,7 +122,8 @@ struct CVarSystem : public ISingleton<CVarSystem> {
     template <typename T>
     CVar<T> CreateCVar(const std::string_view& name, const T& value,
                        const std::string_view& description, CVarFlags flags,
-                       float min, float max) {
+                       float min, float max,
+                       std::vector<std::string> options = {}) {
         auto hash = StringHash(name);
 
         CVarDesc* p_found_desc = FindCVarDescInTable(hash);
@@ -143,6 +144,7 @@ struct CVarSystem : public ISingleton<CVarSystem> {
         desc.type        = CVar<T>::type();
         desc.min         = min;
         desc.max         = max;
+        desc.options     = options;
 
         auto p_array = GetCVarArrayPtr<T>();
         p_array->Add(&desc, value);

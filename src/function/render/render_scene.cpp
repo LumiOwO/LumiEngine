@@ -52,6 +52,19 @@ void RenderScene::LoadScene() {
     //    }
     //}
 
+    // skybox
+    resource->CreateTextureCubemapFromFile("skybox_irradiance",
+                                           "textures/skybox/skybox_irradiance");
+    resource->CreateTextureCubemapFromFile("skybox_specular",
+                                           "textures/skybox/skybox_specular");
+    
+    resource->global.skybox_material->irradiance_cubemap_name =
+        "skybox_irradiance";
+    resource->global.skybox_material->specular_cubemap_name =
+        "skybox_specular";
+    resource->UpdateGlobalDescriptorSet();
+
+    // mesh, textures, materials
     resource->LoadFromGLTFFile("scenes/DamagedHelmet/DamagedHelmet.gltf");
 
     //auto material =
@@ -66,19 +79,17 @@ void RenderScene::LoadScene() {
 
     resource->CreateMaterial("default", "PBRMaterial");
 
+    // render objects (Scene nodes)
+    // TODO: tree structured
     RenderObject &helmet = renderables.emplace_back();
     helmet.mesh_name     = "DamagedHelmet";
     helmet.material_name = "DamagedHelmet_mat_0";
     helmet.rotation = Quaternion(ToRadians(Vec3f(90, 180, 0)));
     //helmet.material_name = "unlit";
-    camera.position = {0, 0, -3};
+    camera.position = {1.5f, 0, -1.5f};
+    camera.eulers_deg = Vec3f(0, -45, 0);
 
-    // skybox
-    //resource->CreateTextureCubeMapFromFile("skybox_irradiance",
-    //                                       "textures/skybox/skybox_irradiance");
-    //resource->CreateTextureCubeMapFromFile("skybox_specular",
-    //                                       "textures/skybox/skybox_specular");
-
+    // TODO: camera control in scene node
 }
 
 void RenderScene::UpdateVisibleObjects() {
@@ -95,7 +106,7 @@ void RenderScene::UpdateVisibleObjects() {
 
 void RenderScene::UploadGlobalResource() {
     auto cam_data = resource->global.data.cam;
-
+    // Update staging buffer
     const Mat4x4f &view     = camera.view();
     const Mat4x4f &proj     = camera.projection();
     cam_data->view          = view;
@@ -105,12 +116,12 @@ void RenderScene::UploadGlobalResource() {
 
     auto env_data = resource->global.data.env;
 
-    env_data->sunlight_color =
-        Vec4f(cvars::GetVec3f("env.sunlight.color").value(),
-              cvars::GetFloat("env.sunlight.intensity").value());
+    env_data->sunlight_color = cvars::GetVec3f("env.sunlight.color").value();
+    env_data->sunlight_intensity =
+        cvars::GetFloat("env.sunlight.intensity").value();
     env_data->sunlight_dir =
         cvars::GetVec3f("env.sunlight.dir").value().Normalize();
-    env_data->debug_idx = cvars::GetInt("debug.pbr_idx").value();
+    env_data->debug_idx = cvars::GetInt("debug.shading").value();
 
     size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
     size_t env_size = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
