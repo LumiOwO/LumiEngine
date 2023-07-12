@@ -1,9 +1,14 @@
 # LumiEngine [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 A simple Vulkan renderer.
 
+![screenshot](screenshots/screenshot.png)
+
 ## Features
 
-- [ ] Basic
+- [ ] PBR
+    - [x] Image Based Lighting (IBL)
+- [ ] (TODO) Shadow
+
 
 ## Prerequisites
 - Visual Studio >= 2022
@@ -29,15 +34,15 @@ Then open the Visual Studio solution in the build directory and build it manuall
 - [Piccolo (formerly Pilot) – mini game engine for games104](https://github.com/BoomingTech/Piccolo)
 - [Vulkan C++ examples and demos](https://github.com/SaschaWillems/Vulkan)
 - [Physical based rendering with Vulkan using glTF 2.0 models](https://github.com/SaschaWillems/Vulkan-glTF-PBR)
+- [glTF Sample Models](https://github.com/KhronosGroup/glTF-Sample-Models)
 
 ## Todos
 
 - [x] Index buffer
-- [ ] PBR
+- [x] Instanced rendering
+- [x] PBR
 - [ ] Shadow map
 - [ ] SSAO
+- [ ] MSAA
 - [ ] vsync
 - [ ] Defered shading
-- [ ] MSAA
-- [ ] Instanced rendering
-- [ ] srgb image loading

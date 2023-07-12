@@ -184,7 +184,7 @@ void RenderResource::InitDefaultTextures() {
     CreateSampler("hdr", &info_hdr);
 
     info_hdr.minLod     = 0.0f;
-    info_hdr.maxLod     = 6.0f;  // TODO: irradiance_texture_miplevels
+    info_hdr.maxLod     = 1000.0f;  // Use a large number here
     info_hdr.mipLodBias = 0.0f;
     CreateSampler("cubemap", &info_hdr);
 

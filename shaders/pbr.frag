@@ -192,7 +192,6 @@ void main() {
     vec3 specular_env_R90 = vec3(1.0, 1.0, 1.0) * reflectance90;
 
     // Directions
-    // TODO: normal map
     vec3 n = UnpackNormal(normal_tex_value);    // normal
     vec3 v = normalize(cam_pos - in_position);  // view dir from surface
     vec3 l = normalize(-sunlight_dir);          // light dir from surface
