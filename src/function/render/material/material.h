@@ -24,7 +24,8 @@ struct Material {
     virtual void CreateDescriptorSet(RenderResource* resource) = 0;
 
     virtual void CreatePipeline(RenderResource* resource,
-                                VkRenderPass    render_pass) = 0;
+                                VkRenderPass    render_pass,
+                                uint32_t        subpass_idx) = 0;
     
     virtual void Upload(RenderResource* resource) = 0;
 

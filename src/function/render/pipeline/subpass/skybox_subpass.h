@@ -11,8 +11,7 @@ struct SkyboxMaterial : public Material {
         kBindingSlotCount 
     };
 
-    // TODO: change to default skybox
-    constexpr static const char* kDefaultSkyboxTexName = "white";
+    constexpr static const char* kDefaultSkyboxTexName = "skybox_empty";
     constexpr static const char* kShaderName           = "skybox";
 
     std::string skybox_tex_name = kDefaultSkyboxTexName;
@@ -20,7 +19,8 @@ struct SkyboxMaterial : public Material {
     virtual void CreateDescriptorSet(RenderResource* resource) override;
 
     virtual void CreatePipeline(RenderResource* resource,
-                                VkRenderPass    render_pass) override;
+                                VkRenderPass    render_pass,
+                                uint32_t        subpass_idx) override;
 
     virtual void Upload(RenderResource* resource) override;
 

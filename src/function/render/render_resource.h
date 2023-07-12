@@ -120,6 +120,9 @@ private:
 
     vk::DestructorQueue dtor_queue_resource_{};
 
+    VkRenderPass default_vk_render_pass_{};
+    uint32_t     default_subpass_idx_{};
+
 public:
     RenderResource(std::shared_ptr<VulkanRHI> rhi) : rhi(rhi) {}
 
@@ -151,7 +154,14 @@ public:
 
     Material* CreateMaterial(const std::string& name,
                              const std::string& type_name,
-                             VkRenderPass       render_pass = VK_NULL_HANDLE);
+                             VkRenderPass       render_pass,
+                             uint32_t           subpass_idx);
+
+    Material* CreateMaterial(const std::string& name,
+                             const std::string& type_name) {
+        return CreateMaterial(name, type_name, default_vk_render_pass_,
+                              default_subpass_idx_);
+    }
 
     Mesh* CreateMeshFromObjFile(const std::string& name,
                                 const fs::path&    filepath);
@@ -162,7 +172,7 @@ public:
 
     vk::Texture* CreateTextureCubeMap(const std::string&     name,
                                       vk::TextureCreateInfo* info,
-                                      std::array<void*, 6>   pixels,
+                                      std::array<void*, 6>&  pixels,
                                       uint32_t               mip_levels);
 
     vk::Texture* CreateTexture2DFromFile(const std::string& name,
@@ -175,12 +185,18 @@ public:
     vk::Texture* CreateTextureCubeMapFromFile(const std::string& name,
                                               const fs::path&    basepath);
 
-    vk::DescriptorEditor EditDescriptorSet(vk::DescriptorSet* descriptor_set) {
+    void LoadFromGLTFFile(const fs::path& filepath);
+
+    vk::DescriptorEditor BeginEditDescriptorSet(
+        vk::DescriptorSet* descriptor_set) {
         return vk::DescriptorEditor::Begin(
             &descriptor_allocator_, &descriptor_layout_cache_, descriptor_set);
     }
 
-    void LoadFromGLTFFile(const fs::path& filepath);
+    void SetDefaultRenderPass(VkRenderPass render_pass, uint32_t subpass_idx) {
+        default_vk_render_pass_ = render_pass;
+        default_subpass_idx_    = subpass_idx;
+    }
 
 private:
     void InitGlobalResource();
@@ -197,7 +213,8 @@ private:
     void UploadTexture2D(vk::Texture* texture, const void* pixels,
                          VkImageAspectFlags aspect);
 
-    void UploadTextureCubeMap(vk::Texture* texture, std::array<void*, 6> pixels,
+    void UploadTextureCubeMap(vk::Texture*          texture,
+                              std::array<void*, 6>& pixels,
                               VkImageAspectFlags aspect, uint32_t mip_levels);
 
     void GLTFLoadTexture(const std::string& name, tinygltf::Model& gltf_model,

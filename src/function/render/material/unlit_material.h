@@ -18,7 +18,8 @@ struct UnlitMaterial : public Material {
     virtual void CreateDescriptorSet(RenderResource* resource) override;
 
     virtual void CreatePipeline(RenderResource* resource,
-                                VkRenderPass    render_pass) override;
+                                VkRenderPass    render_pass,
+                                uint32_t        subpass_idx) override;
 
     virtual void Upload(RenderResource* resource) override;
 

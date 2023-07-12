@@ -7,7 +7,7 @@ layout(set = 1, binding = 0) readonly buffer _unused_name_camera {
     vec3 cam_pos;
 };
 
-layout(location = 0) out vec3 out_uvw;
+layout(location = 0) out vec3 sample_position;
 
 void main() {
     const vec3 vertex_offsets[8] = vec3[8](  //
@@ -39,13 +39,12 @@ void main() {
 
     // vec3 world_position = camera_position + (camera_z_far_plane / 1.733) *
     // cube_corner_vertex_offsets[cube_triangle_index[gl_VertexIndex]];
-    vec3 world_position = cam_pos + vertex_offsets[indices[gl_VertexIndex]];
+    vec3 object_position = vertex_offsets[indices[gl_VertexIndex]];
+    vec3 world_position  = cam_pos + object_position;
 
     // world to NDC
     vec4 clip_position = proj_view * vec4(world_position, 1.0);
-    // depth set to 0.99999?
-    // clip_position.z = clip_position.w * 0.99999;
-    gl_Position = clip_position;
+    gl_Position = clip_position.xyww;
 
-    out_uvw = normalize(world_position - cam_pos);
+    sample_position = object_position;
 }

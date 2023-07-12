@@ -11,7 +11,8 @@ void SkyboxMaterial::CreateDescriptorSet(RenderResource* resource) {
 }
 
 void SkyboxMaterial::CreatePipeline(RenderResource* resource,
-                                    VkRenderPass    render_pass) {
+                                    VkRenderPass    render_pass,
+                                    uint32_t        subpass_idx) {
     VkDevice device = resource->rhi->device();
 
     vk::PipelineBuilder pipeline_builder{};
@@ -74,8 +75,7 @@ void SkyboxMaterial::CreatePipeline(RenderResource* resource,
         (uint32_t)vertexDescription.bindings.size();
 
     // Finally build pipeline
-    // TODO: !fix skybox subpass index!
-    this->pipeline = pipeline_builder.Build(device, render_pass, 1);
+    this->pipeline = pipeline_builder.Build(device, render_pass, subpass_idx);
 
     resource->PushDestructor([this, device]() {
         vkDestroyPipeline(device, this->pipeline, nullptr);
@@ -89,7 +89,7 @@ void SkyboxMaterial::Upload(RenderResource* resource) {
 
 void SkyboxMaterial::EditDescriptorSet(RenderResource* resource,
                                        bool            update_only) {
-    auto editor = resource->EditDescriptorSet(&descriptor_set);
+    auto editor = resource->BeginEditDescriptorSet(&descriptor_set);
     auto rhi    = resource->rhi;
 
     // Update textures
@@ -112,8 +112,9 @@ void SkyboxSubpass::Init(uint32_t subpass_idx) {
     auto resource = render_pass_->resource;
 
     material_ = (SkyboxMaterial*)resource->CreateMaterial(
-        "_skybox", "SkyboxMaterial", render_pass_->vk_render_pass());
-    material_->skybox_tex_name = "skybox_specular";
+        "_skybox", "SkyboxMaterial", render_pass_->vk_render_pass(),
+        subpass_idx);
+    //material_->skybox_tex_name = "skybox_irradiance";
     material_->Upload(resource.get());
 }
 

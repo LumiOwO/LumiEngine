@@ -65,7 +65,7 @@ void RenderResource::InitGlobalResource() {
     });
 
     // --- Build descriptor set ---
-    auto editor = EditDescriptorSet(&global.descriptor_set);
+    auto editor = BeginEditDescriptorSet(&global.descriptor_set);
 
     editor.BindBuffer(kGlobalBindingCamera,  //
                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
@@ -102,7 +102,7 @@ void RenderResource::InitMeshInstancesResource() {
     });
 
     // --- Build descriptor set ---
-    auto editor = EditDescriptorSet(&mesh_instances.descriptor_set);
+    auto editor = BeginEditDescriptorSet(&mesh_instances.descriptor_set);
 
     editor.BindBuffer(kMeshInstanceBinding,
                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
@@ -167,9 +167,20 @@ void RenderResource::InitDefaultTextures() {
     // lut
     CreateTextureHDRFromFile("lut_brdf", "textures/lut/brdf.hdr");
 
+    // cubemaps
+    tex_info.format       = VK_FORMAT_R32G32B32A32_SFLOAT;
+    tex_info.sampler_name = "cubemap";
+    Color4f gray          = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
+
+    std::array<void *, 6> cubemap_empty_data = {
+        &gray, &gray, &gray, &gray, &gray, &gray,
+    };
+    CreateTextureCubeMap("skybox_empty", &tex_info, cubemap_empty_data, 1);
     // TODO: skybox
-    CreateTextureCubeMapFromFile("skybox_specular",
-                                 "textures/skybox/skybox_specular");
+    //CreateTextureCubeMapFromFile("skybox_specular",
+    //                             "textures/skybox/skybox_specular");
+    //CreateTextureCubeMapFromFile("skybox_irradiance",
+    //                            "textures/skybox/skybox_irradiance");
 }
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
@@ -321,7 +332,8 @@ VkSampler RenderResource::CreateSampler(const std::string   &name,
 
 Material *RenderResource::CreateMaterial(const std::string &name,
                                          const std::string &type_name,
-                                         VkRenderPass       render_pass) {
+                                         VkRenderPass       render_pass,
+                                         uint32_t           subpass_idx) {
     Material *res = GetMaterial(name);
     if (res) {
         LOG_WARNING("Create material with an existed name {}", name);
@@ -337,11 +349,8 @@ Material *RenderResource::CreateMaterial(const std::string &name,
         material_type.create().get_value<std::shared_ptr<Material>>();
     materials_[name] = material;
 
-    if (render_pass == VK_NULL_HANDLE) {
-        render_pass = rhi->main_render_pass();
-    }
     material->CreateDescriptorSet(this);
-    material->CreatePipeline(this, render_pass);
+    material->CreatePipeline(this, render_pass, subpass_idx);
     return material.get();
 }
 
@@ -593,7 +602,7 @@ vk::Texture *RenderResource::CreateTexture2D(const std::string     &name,  //
 
 vk::Texture *RenderResource::CreateTextureCubeMap(const std::string     &name,
                                                   vk::TextureCreateInfo *info,
-                                                  std::array<void *, 6>  pixels,
+                                                  std::array<void *, 6> &pixels,
                                                   uint32_t mip_levels) {
     vk::Texture *res = GetTexture(name);
     if (res) {
@@ -752,10 +761,10 @@ void RenderResource::UploadTexture2D(vk::Texture *texture, const void *pixels,
     });
 }
 
-void RenderResource::UploadTextureCubeMap(vk::Texture          *texture,
-                                          std::array<void *, 6> pixels,
-                                          VkImageAspectFlags    aspect,
-                                          uint32_t              mip_levels) {
+void RenderResource::UploadTextureCubeMap(vk::Texture           *texture,
+                                          std::array<void *, 6> &pixels,
+                                          VkImageAspectFlags     aspect,
+                                          uint32_t               mip_levels) {
     VkDeviceSize channels     = 0;
     size_t       element_size = sizeof(char);
     switch (texture->format) {

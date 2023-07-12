@@ -305,8 +305,7 @@ struct PipelineBuilder {
     VkPipelineDepthStencilStateCreateInfo        depth_stencil{};
 
     VkPipeline Build(VkDevice device, VkRenderPass render_pass,
-                     uint32_t subpass_idx = 0) {
-        // TODO: !!!! fix subpass index
+                     uint32_t subpass_idx) {
         // make viewport state from our stored viewport and scissor.
         // at the moment we won't support multiple viewports or scissors
         VkPipelineViewportStateCreateInfo viewport_state{};

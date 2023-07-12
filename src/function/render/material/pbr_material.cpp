@@ -28,7 +28,8 @@ void PBRMaterial::CreateDescriptorSet(RenderResource* resource) {
 }
 
 void PBRMaterial::CreatePipeline(RenderResource* resource,
-                                 VkRenderPass    render_pass) {
+                                 VkRenderPass    render_pass,
+                                 uint32_t        subpass_idx) {
     VkDevice device = resource->rhi->device();
 
     vk::PipelineBuilder pipeline_builder{};
@@ -91,7 +92,7 @@ void PBRMaterial::CreatePipeline(RenderResource* resource,
         (uint32_t)vertexDescription.bindings.size();
 
     // Finally build pipeline
-    this->pipeline = pipeline_builder.Build(device, render_pass);
+    this->pipeline = pipeline_builder.Build(device, render_pass, subpass_idx);
 
     resource->PushDestructor([this, device]() {
         vkDestroyPipeline(device, this->pipeline, nullptr);
@@ -105,7 +106,7 @@ void PBRMaterial::Upload(RenderResource* resource) {
 
 void PBRMaterial::EditDescriptorSet(RenderResource* resource,
                                     bool            update_only) {
-    auto editor = resource->EditDescriptorSet(&descriptor_set);
+    auto editor = resource->BeginEditDescriptorSet(&descriptor_set);
     auto rhi    = resource->rhi;
 
     // Update textures

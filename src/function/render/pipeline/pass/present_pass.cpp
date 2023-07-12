@@ -11,7 +11,7 @@ void PresentPass::PreInit() {
 }
 
 void PresentPass::PostInit() {
-    rhi->SetMainRenderPass(vk_render_pass_);
+    resource->SetDefaultRenderPass(vk_render_pass_, kSubpassMeshLighting);
 
     mesh_lighting_pass_->Init(kSubpassMeshLighting);
 

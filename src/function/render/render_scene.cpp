@@ -74,8 +74,8 @@ void RenderScene::LoadScene() {
     camera.position = {0, 0, -3};
 
     // skybox
-    resource->CreateTextureCubeMapFromFile("skybox_irradiance",
-                                           "textures/skybox/skybox_irradiance");
+    //resource->CreateTextureCubeMapFromFile("skybox_irradiance",
+    //                                       "textures/skybox/skybox_irradiance");
     //resource->CreateTextureCubeMapFromFile("skybox_specular",
     //                                       "textures/skybox/skybox_specular");
 

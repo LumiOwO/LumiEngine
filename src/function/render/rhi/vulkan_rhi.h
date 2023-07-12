@@ -34,7 +34,6 @@ private:
     VkFormat                 swapchain_image_format_{};
     VkQueue                  graphics_queue_{};
     uint32_t                 graphics_queue_family_{};
-    VkRenderPass             main_render_pass_{};
     VkDescriptorPool         imgui_pool_{};
 
     int frame_idx_ = 0;
@@ -71,14 +70,8 @@ public:
         return swapchain_image_views_;
     }
 
-    VkRenderPass main_render_pass() const { return main_render_pass_; }
-
     float max_sampler_anisotropy() const {
         return gpu_properties_.limits.maxSamplerAnisotropy;
-    }
-
-    void SetMainRenderPass(VkRenderPass render_pass) {
-        main_render_pass_ = render_pass;
     }
 
     VkCommandBuffer GetCurrentCommandBuffer() const {
