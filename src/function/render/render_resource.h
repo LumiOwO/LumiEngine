@@ -24,6 +24,7 @@ struct Mesh {
     using IndexType                           = uint32_t;
     constexpr static VkIndexType kVkIndexType = VK_INDEX_TYPE_UINT32;
 
+    BoundingBox             bbox{};
     std::vector<vk::Vertex> vertices{};
     std::vector<IndexType>  indices{};
     vk::AllocatedBuffer     vertex_buffer{};

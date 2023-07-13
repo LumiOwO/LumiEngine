@@ -475,6 +475,7 @@ Mesh *RenderResource::CreateMeshFromObjFile(const std::string &name,
                 vertex_hashmap[new_vert] =
                     (Mesh::IndexType)mesh.vertices.size();
                 mesh.vertices.emplace_back(new_vert);
+                mesh.bbox.Merge(new_vert.position);
             }
 
             mesh.indices.emplace_back(vertex_hashmap[new_vert]);
@@ -906,7 +907,6 @@ void RenderResource::LoadFromGLTFFile(const fs::path &filepath) {
         gltf_model
             .scenes[gltf_model.defaultScene > -1 ? gltf_model.defaultScene : 0];
     auto &mesh = meshes_[name];
-
     for (size_t i = 0; i < scene.nodes.size(); i++) {
         const tinygltf::Node node = gltf_model.nodes[scene.nodes[i]];
         GLTFLoadMesh(gltf_model, node, scene.nodes[i], &mesh);
@@ -1232,6 +1232,7 @@ void RenderResource::GLTFLoadMesh(const tinygltf::Model &model,
 
             auto pos      = &bufferPos[v * posByteStride];
             vert.position = Vec3f(pos[0], pos[1], pos[2]);
+            mesh->bbox.Merge(vert.position);
 
             if (bufferNormals) {
                 auto normal = &bufferNormals[v * normByteStride];
