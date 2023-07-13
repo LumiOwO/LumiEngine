@@ -77,8 +77,8 @@ void RenderResource::EditGlobalDescriptorSet(bool update_only) {
                       global.buffer.buffer, 0, sizeof(CamDataSSBO));
     editor.BindBuffer(kGlobalBindingEnvironment,  //
                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                      global.buffer.buffer, 0, sizeof(EnvDataSSBO));
+                      VK_SHADER_STAGE_FRAGMENT_BIT, global.buffer.buffer, 0,
+                      sizeof(EnvDataSSBO));
 
     // Update textures
     {
@@ -223,7 +223,7 @@ void RenderResource::InitDefaultTextures() {
     std::array<void *, 6> cubemap_empty_data = {
         &gray, &gray, &gray, &gray, &gray, &gray,
     };
-    CreateTextureCubemap("skybox_empty", &tex_info, cubemap_empty_data, 1);
+    CreateTextureCubemap("skybox_empty", &tex_info, cubemap_empty_data);
 }
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
@@ -612,11 +612,11 @@ vk::Texture *RenderResource::CreateTextureCubemapFromFile(
     info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
     info.sampler_name = "cubemap";
 
-    uint32_t mip_levels =
+    info.mip_levels =
         uint32_t(std::floor(std::log2(std::max(texWidth, texHeight)))) + 1;
 
     vk::Texture *texture =
-        CreateTextureCubemap(name, &info, image_datas, mip_levels);
+        CreateTextureCubemap(name, &info, image_datas);
 
     for (auto &data : image_datas) {
         stbi_image_free(data);
@@ -652,8 +652,7 @@ vk::Texture *RenderResource::CreateTexture2D(const std::string     &name,  //
 
 vk::Texture *RenderResource::CreateTextureCubemap(const std::string     &name,
                                                   vk::TextureCreateInfo *info,
-                                                  std::array<void *, 6> &pixels,
-                                                  uint32_t mip_levels) {
+                                                  std::array<void *, 6> &pixels) {
     vk::Texture *res = GetTexture(name);
     if (res) {
         LOG_WARNING("Create texture with an existed name {}", name);
@@ -661,8 +660,8 @@ vk::Texture *RenderResource::CreateTextureCubemap(const std::string     &name,
     }
 
     vk::Texture *texture = &textures_[name];
-    rhi->AllocateTextureCubemap(texture, info, mip_levels);
-    UploadTextureCubemap(texture, pixels, info->aspect_flags, mip_levels);
+    rhi->AllocateTextureCubemap(texture, info);
+    UploadTextureCubemap(texture, pixels, info->aspect_flags, info->mip_levels);
 
     VkSampler sampler = GetSampler(info->sampler_name);
     if (!sampler) {

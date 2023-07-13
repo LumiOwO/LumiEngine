@@ -43,9 +43,13 @@ layout(set = 1, binding = 1) readonly buffer _unused_name_environment {
     vec3  sunlight_color;
     float sunlight_intensity;
     vec3  sunlight_dir;
+    float ibl_intensity;
     float mip_levels;
+    int   debug_idx;
+    float _padding_0;
+    float _padding_1;
 
-    int debug_idx;
+    mat4 sunlight_world_to_clip;
 };
 
 layout(set = 1, binding = 2) uniform samplerCube skybox_irradiance;
@@ -228,7 +232,8 @@ void main() {
     float lod = (perceptual_roughness * mip_levels);
 
     vec3 ibl_diffuse_light = Tonemap(texture(skybox_irradiance, n).rgb);
-    vec3 ibl_diffuse       = ibl_diffuse_light * diffuse_color;
+    ibl_diffuse_light *= ibl_intensity;
+    vec3 ibl_diffuse = ibl_diffuse_light * diffuse_color;
 
     vec2 ibl_brdf =
         (texture(lut_brdf, vec2(NdotV, 1.0 - perceptual_roughness))).rg;

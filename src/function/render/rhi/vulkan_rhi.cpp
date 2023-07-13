@@ -330,9 +330,10 @@ void VulkanRHI::CopyBuffer(const vk::AllocatedBuffer* src,
 void VulkanRHI::AllocateTexture2D(vk::Texture*           texture,
                                   vk::TextureCreateInfo* info) {
 
-    texture->width  = info->width;
-    texture->height = info->height;
-    texture->format = info->format;
+    texture->width      = info->width;
+    texture->height     = info->height;
+    texture->format     = info->format;
+    texture->mip_levels = info->mip_levels;
 
     // Create VkImage
     VkExtent3D image_extent{};
@@ -340,8 +341,8 @@ void VulkanRHI::AllocateTexture2D(vk::Texture*           texture,
     image_extent.height = info->height;
     image_extent.depth  = 1;
 
-    VkImageCreateInfo img_info =
-        vk::BuildImageCreateInfo(info->format, info->image_usage, image_extent);
+    VkImageCreateInfo img_info = vk::BuildImageCreateInfo(
+        info->format, info->image_usage, image_extent, info->mip_levels, 1);
 
     VmaAllocationCreateInfo img_allocinfo{};
     img_allocinfo.usage = info->memory_usage;
@@ -358,11 +359,11 @@ void VulkanRHI::AllocateTexture2D(vk::Texture*           texture,
 }
 
 void VulkanRHI::AllocateTextureCubemap(vk::Texture*           texture,
-                                       vk::TextureCreateInfo* info,
-                                       uint32_t               mip_levels) {
-    texture->width  = info->width;
-    texture->height = info->height;
-    texture->format = info->format;
+                                       vk::TextureCreateInfo* info) {
+    texture->width      = info->width;
+    texture->height     = info->height;
+    texture->format     = info->format;
+    texture->mip_levels = info->mip_levels;
 
     // Create VkImage
     VkExtent3D image_extent{};
@@ -370,11 +371,9 @@ void VulkanRHI::AllocateTextureCubemap(vk::Texture*           texture,
     image_extent.height = info->height;
     image_extent.depth  = 1;
 
-    VkImageCreateInfo img_info =
-        vk::BuildImageCreateInfo(info->format, info->image_usage, image_extent);
+    VkImageCreateInfo img_info = vk::BuildImageCreateInfo(
+        info->format, info->image_usage, image_extent, info->mip_levels, 6);
     img_info.flags       = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-    img_info.mipLevels   = mip_levels;
-    img_info.arrayLayers = 6;
 
     VmaAllocationCreateInfo img_allocinfo{};
     img_allocinfo.usage = info->memory_usage;
@@ -388,7 +387,7 @@ void VulkanRHI::AllocateTextureCubemap(vk::Texture*           texture,
         texture->format, texture->image.image, info->aspect_flags);
     imageinfo.viewType                        = VK_IMAGE_VIEW_TYPE_CUBE;
     imageinfo.subresourceRange.baseMipLevel   = 0;
-    imageinfo.subresourceRange.levelCount     = mip_levels;
+    imageinfo.subresourceRange.levelCount     = info->mip_levels;
     imageinfo.subresourceRange.baseArrayLayer = 0;
     imageinfo.subresourceRange.layerCount     = 6;
 

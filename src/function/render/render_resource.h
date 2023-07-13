@@ -32,11 +32,12 @@ struct Mesh {
 };
 
 struct RenderObject {
-    std::string mesh_name     = "";
-    std::string material_name = "";
-    Vec3f       position      = Vec3f::kZero;
-    Quaternion  rotation      = Quaternion::kIdentity;
-    Vec3f       scale         = Vec3f::kUnitScale;
+    std::string mesh_name       = "";
+    std::string material_name   = "";
+    Vec3f       position        = Vec3f::kZero;
+    Quaternion  rotation        = Quaternion::kIdentity;
+    Vec3f       scale           = Vec3f::kUnitScale;
+    Mat4x4f     object_to_world = Mat4x4f::kIdentity;
 };
 
 struct RenderObjectDesc {
@@ -63,12 +64,16 @@ struct CamDataSSBO {
 };
 
 struct EnvDataSSBO {
-    Vec3f sunlight_color{};
-    float sunlight_intensity{};
-    Vec3f sunlight_dir{};
-    float _padding_sunlight_dir{};
-
+    Vec3f   sunlight_color{};
+    float   sunlight_intensity{};
+    Vec3f   sunlight_dir{};
+    float   ibl_intensity{1};
+    float   mip_levels{};
     int32_t debug_idx{};
+    float   _padding[2];
+
+    Mat4x4f sunlight_world_to_clip{};
+
 };
 
 enum MeshInstanceBindingSlot {
@@ -182,8 +187,7 @@ public:
 
     vk::Texture* CreateTextureCubemap(const std::string&     name,
                                       vk::TextureCreateInfo* info,
-                                      std::array<void*, 6>&  pixels,
-                                      uint32_t               mip_levels);
+                                      std::array<void*, 6>&  pixels);
 
     vk::Texture* CreateTexture2DFromFile(const std::string& name,
                                          const fs::path&    filepath,

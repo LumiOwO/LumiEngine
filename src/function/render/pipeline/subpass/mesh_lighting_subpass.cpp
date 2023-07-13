@@ -30,10 +30,7 @@ void MeshLightingSubpass::CmdRender(VkCommandBuffer cmd) {
             // Write to staging buffer
             for (auto& desc : batch) {
                 RenderObject* object = desc->object;
-                cur_instance->object_to_world =
-                    Mat4x4f::Translation(object->position) *  //
-                    Mat4x4f(object->rotation) *               //
-                    Mat4x4f::Scale(object->scale);
+                cur_instance->object_to_world = object->object_to_world;
                 cur_instance->world_to_object =
                     Mat4x4f::Scale(1.0f / object->scale) *  //
                     Mat4x4f(object->rotation.Inverse()) *   //

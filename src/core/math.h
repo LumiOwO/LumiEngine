@@ -20,6 +20,7 @@
 #include "glm/gtx/euler_angles.hpp"
 #include "glm/gtx/hash.hpp"
 #include "glm/gtx/quaternion.hpp"
+#include "glm/gtx/component_wise.hpp"
 
 #ifdef _WIN32
 #pragma warning(pop)
@@ -171,6 +172,14 @@ struct Vec3f : public glm::vec3 {
 
     Vec3f Normalize() const { return glm::normalize(*this); }
 
+    Vec3f Abs() const { return glm::abs(glm::vec3(*this)); }
+
+    float Length() const { return glm::length(glm::vec3(*this)); }
+
+    float LengthSquare() const { return glm::length2(glm::vec3(*this)); }
+
+    float Sum() const { return glm::compAdd(glm::vec3(*this)); }
+
     static const Vec3f kZero;
     static const Vec3f kUnitX;
     static const Vec3f kUnitY;
@@ -220,6 +229,10 @@ constexpr Vec3f operator/(const Vec3f& a, float s) { return glm::vec3(a) / s; }
 
 constexpr Vec3f operator/(const Vec3f& a, const Vec3f& b) {
     return glm::vec3(a) / glm::vec3(b);
+}
+
+constexpr Vec3f Cross(const Vec3f& a, const Vec3f& b) {
+    return glm::cross(a, b);
 }
 
 using Color3f = Vec3f;
@@ -443,6 +456,16 @@ struct Mat4x4f : public glm::mat4x4 {
 
     static Mat4x4f Translation(const Vec3f& v) {
         return glm::translate(kIdentity, v);
+    }
+
+    static Mat4x4f LookAt(const Vec3f& eye, const Vec3f& center,
+                          const Vec3f& up) {
+        return glm::lookAt(eye, center, up);
+    }
+
+    static Mat4x4f Orthographic(float left, float right, float bottom,
+                                float top, float near, float far) {
+        return glm::ortho(left, right, bottom, top, near, far);
     }
 
     static Mat4x4f Perspective(float fovy, float aspect, float near,

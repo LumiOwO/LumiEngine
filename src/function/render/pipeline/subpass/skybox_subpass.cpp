@@ -23,7 +23,7 @@ void SkyboxSubpass::CmdRender(VkCommandBuffer cmd) {
 
     vkCmdPushConstants(cmd, material->pipeline_layout,
                        VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(int),
-                       cvars::GetInt("env.skybox").ptr());
+                       cvars::GetInt("debug.skybox").ptr());
 
     // 2 triangles (6 vertex) each face, 6 faces
     vkCmdDraw(cmd, 36, 1, 0, 0);

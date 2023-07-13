@@ -40,6 +40,7 @@ struct AllocatedImage {
 struct Texture {
     uint32_t           width{};
     uint32_t           height{};
+    uint32_t           mip_levels{1};
     VkFormat           format{};
     vk::AllocatedImage image{};
     std::string        sampler_name{};
@@ -48,6 +49,7 @@ struct Texture {
 struct TextureCreateInfo {
     uint32_t           width{};
     uint32_t           height{};
+    uint32_t           mip_levels{1};
     VkFormat           format{};
     VkImageUsageFlags  image_usage{};
     VmaMemoryUsage     memory_usage{};
