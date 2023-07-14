@@ -11,10 +11,10 @@ namespace lumi {
 void RenderScene::LoadScene() {
     // TODO: load from json file
 
-    //if (!resource->CreateMeshFromObjFile("monkey",
-    //                                     "models/monkey_smooth.obj")) {
-    //    LOG_ERROR("Loading .obj file failed");
-    //}
+    if (!resource->CreateMeshFromObjFile("monkey",
+                                         "models/monkey_smooth.obj")) {
+        LOG_ERROR("Loading .obj file failed");
+    }
 
     //if (!resource->CreateMeshFromObjFile(
     //        "empire", "scenes/lost_empire/lost_empire.obj")) {
@@ -86,6 +86,13 @@ void RenderScene::LoadScene() {
     helmet.material_name = "DamagedHelmet_mat_0";
     helmet.rotation = Quaternion(ToRadians(Vec3f(90, 180, 0)));
     //helmet.material_name = "unlit";
+
+    RenderObject &monkey = renderables.emplace_back();
+    monkey.mesh_name     = "monkey";
+    monkey.material_name = "default";
+    monkey.position      = {0, -2, 0};
+    monkey.rotation      = Quaternion(ToRadians(Vec3f(0, 0, 0)));
+
     camera.position = {1.5f, 0, -1.5f};
     camera.eulers_deg = Vec3f(0, -45, 0);
 
@@ -93,7 +100,8 @@ void RenderScene::LoadScene() {
 }
 
 void RenderScene::UpdateVisibleObjects() {
-    resource->visible_object_descs.clear();
+    auto &visible_batchs = resource->visibles_drawcall_batchs;
+    visible_batchs.clear();
 
     // TODO: culling
     for (auto &renderable : renderables) {
@@ -103,16 +111,23 @@ void RenderScene::UpdateVisibleObjects() {
             Mat4x4f(renderable.rotation) *               //
             Mat4x4f::Scale(renderable.scale);
 
-        auto &desc    = resource->visible_object_descs.emplace_back();
-        desc.mesh     = resource->GetMesh(renderable.mesh_name);
-        desc.material = resource->GetMaterial(renderable.material_name);
+        Material *material = resource->GetMaterial(renderable.material_name);
+        Mesh     *mesh     = resource->GetMesh(renderable.mesh_name);
+        auto     &batch    = visible_batchs[material][mesh];
+
+        auto &desc    = batch.emplace_back();
+        desc.material = material;
+        desc.mesh     = mesh;
         desc.object   = &renderable;
     }
+
 }
 
 void RenderScene::UploadGlobalResource() {
-    auto cam_data = resource->global.data.cam;
+    // --- Global resource ---
     // Update camera data staging buffer
+    auto cam_data = resource->global.data.cam;
+
     const Mat4x4f &view     = camera.view();
     const Mat4x4f &proj     = camera.projection();
     cam_data->view          = view;
@@ -125,8 +140,9 @@ void RenderScene::UploadGlobalResource() {
     Mat4x4f sunlight_world_to_clip =
         GetSunlightWorldToClip(camera, sunlight_dir);
 
-    auto env_data = resource->global.data.env;
     // Update environment data staging buffer
+    auto env_data = resource->global.data.env;
+
     env_data->sunlight_color = cvars::GetVec3f("env.sunlight.color").value();
     env_data->sunlight_intensity =
         cvars::GetFloat("env.sunlight.intensity").value();
@@ -140,11 +156,38 @@ void RenderScene::UploadGlobalResource() {
     env_data->debug_idx              = cvars::GetInt("debug.shading").value();
     env_data->sunlight_world_to_clip = sunlight_world_to_clip;
 
+    // Upload global data to GPU
     size_t cam_size = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
     size_t env_size = rhi->PaddedSizeOfSSBO<EnvDataSSBO>();
     rhi->CopyBuffer(&resource->global.staging_buffer, &resource->global.buffer,
                     cam_size + env_size,
                     resource->GlobalSSBODynamicOffsets()[0]);
+
+    // --- Mesh instance resource ---
+    // Update staging buffer
+    size_t visibles_cnt = 0;
+    auto   cur_instance = resource->mesh_instances.data.cur_instance;
+    for (auto &[mat, mat_batch] : resource->visibles_drawcall_batchs) {
+        for (auto &[mesh, batch] : mat_batch) {
+            // Write to staging buffer
+            for (auto &desc : batch) {
+                RenderObject *object          = desc.object;
+                cur_instance->object_to_world = object->object_to_world;
+                cur_instance->world_to_object =
+                    Mat4x4f::Scale(1.0f / object->scale) *  //
+                    Mat4x4f(object->rotation.Inverse()) *   //
+                    Mat4x4f::Translation(-object->position);
+                cur_instance++;
+                visibles_cnt++;
+            }
+        }
+    }
+
+    // Upload mesh instance data to GPU
+    rhi->CopyBuffer(&resource->mesh_instances.staging_buffer,
+                    &resource->mesh_instances.buffer,
+                    sizeof(MeshInstanceSSBO) * visibles_cnt,
+                    resource->MeshInstanceSSBODynamicOffsets()[0]);
 }
 
 Mat4x4f RenderScene::GetSunlightWorldToClip(const Camera &camera,
@@ -189,7 +232,7 @@ Mat4x4f RenderScene::GetSunlightWorldToClip(const Camera &camera,
     Vec3f   center             = frustum_bbox.center();
     Vec3f   up                 = Vec3f::kUnitY;
     // Avoid nan
-    if (Cross(center - eye, up).LengthSquare() < 1e-5) {
+    if (Cross(center - eye, up).LengthSquare() < 0.001f) {
         up = Vec3f::kUnitZ;
     }
     Mat4x4f world_to_lightview = Mat4x4f::LookAt(eye, center, up);

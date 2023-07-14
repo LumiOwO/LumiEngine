@@ -2,6 +2,7 @@
 
 #include "core/scope_guard.h"
 #include "material/pbr_material.h"
+#include "pipeline/pass/shadow_pass.h"
 
 #ifdef _WIN32
 #include <codeanalysis/warnings.h>
@@ -42,6 +43,79 @@ void RenderResource::Init() {
     InitMeshInstancesResource();
 }
 
+void RenderResource::InitDefaultTextures() {
+    // Samplers
+    VkSamplerCreateInfo info_nearest =
+        vk::BuildSamplerCreateInfo(VK_FILTER_NEAREST);
+    CreateSampler("nearest", &info_nearest);
+
+    VkSamplerCreateInfo info_linear =
+        vk::BuildSamplerCreateInfo(VK_FILTER_LINEAR);
+    CreateSampler("linear", &info_linear);
+
+    VkSamplerCreateInfo info_hdr = vk::BuildSamplerCreateInfo(
+        VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
+    info_hdr.anisotropyEnable        = VK_TRUE;
+    info_hdr.maxAnisotropy           = rhi->max_sampler_anisotropy();
+    info_hdr.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    info_hdr.unnormalizedCoordinates = VK_FALSE;
+    info_hdr.compareEnable           = VK_FALSE;
+    info_hdr.compareOp               = VK_COMPARE_OP_ALWAYS;
+    info_hdr.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    info_hdr.minLod                  = 0.0f;
+    info_hdr.maxLod                  = 0.0f;
+    CreateSampler("hdr", &info_hdr);
+
+    info_hdr.minLod     = 0.0f;
+    info_hdr.maxLod     = 1000.0f;  // Use a large number here
+    info_hdr.mipLodBias = 0.0f;
+    CreateSampler("cubemap", &info_hdr);
+
+    // srgb color space
+    vk::TextureCreateInfo tex_info{};
+    tex_info.width  = 1;
+    tex_info.height = 1;
+    tex_info.format = VK_FORMAT_R8G8B8A8_SRGB;
+    tex_info.image_usage =
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    tex_info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
+    tex_info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
+    tex_info.sampler_name = "nearest";
+
+    // clang-format off
+    CreateTexture2D("white", &tex_info, &Color4u8::kWhite);
+    CreateTexture2D("black", &tex_info, &Color4u8::kBlack);
+    CreateTexture2D("red",   &tex_info, &Color4u8::kRed);
+    CreateTexture2D("green", &tex_info, &Color4u8::kGreen);
+    CreateTexture2D("blue",  &tex_info, &Color4u8::kBlue);
+    // clang-format on
+
+    // linear color space
+    tex_info.format         = VK_FORMAT_R8G8B8A8_UNORM;
+    Color4u8 normal_default = Color4u8(128, 128, 255, 255);
+    CreateTexture2D("normal_default", &tex_info, &normal_default);
+
+    // lut
+    CreateTextureHDRFromFile("lut_brdf", "textures/lut/brdf.hdr");
+
+    // Cubemaps
+    tex_info.format       = VK_FORMAT_R32G32B32A32_SFLOAT;
+    tex_info.sampler_name = "cubemap";
+    Color4f gray          = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
+
+    std::array<void *, 6> cubemap_empty_data = {
+        &gray, &gray, &gray, &gray, &gray, &gray,
+    };
+    CreateTextureCubemap("skybox_empty", &tex_info, cubemap_empty_data);
+
+    // Depth maps
+    tex_info.format       = VK_FORMAT_D32_SFLOAT;
+    tex_info.sampler_name = "nearest";
+    tex_info.aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT;
+    float depth_default   = 1.0f;
+    CreateTexture2D("depth_default", &tex_info, &depth_default);
+}
+
 void RenderResource::InitGlobalResource() {
     // --- Resource buffer ---
     size_t cam_size   = rhi->PaddedSizeOfSSBO<CamDataSSBO>();
@@ -77,10 +151,10 @@ void RenderResource::EditGlobalDescriptorSet(bool update_only) {
                       global.buffer.buffer, 0, sizeof(CamDataSSBO));
     editor.BindBuffer(kGlobalBindingEnvironment,  //
                       VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
-                      VK_SHADER_STAGE_FRAGMENT_BIT, global.buffer.buffer, 0,
-                      sizeof(EnvDataSSBO));
+                      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                      global.buffer.buffer, 0, sizeof(EnvDataSSBO));
 
-    // Update textures
+    // IBL textures
     {
         vk::Texture *texture =
             GetTexture(SkyboxMaterial::kDefaultSkyboxTexName);
@@ -123,6 +197,20 @@ void RenderResource::EditGlobalDescriptorSet(bool update_only) {
             VK_SHADER_STAGE_FRAGMENT_BIT, sampler, texture->image.image_view,
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
+    // Shadow maps
+    {
+        vk::Texture *texture =
+            GetTexture(ShadowPass::kDirectionalShadowMapName);
+        if (texture == nullptr) {
+            texture = GetTexture("depth_default");
+        }
+        VkSampler sampler = GetSampler(texture->sampler_name);
+        editor.BindImage(kGlobalBindingShadowMapDirectional,
+                         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                         VK_SHADER_STAGE_FRAGMENT_BIT, sampler,
+                         texture->image.image_view,
+                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL);
+    }
 
     editor.Execute(update_only);
 }
@@ -158,72 +246,6 @@ void RenderResource::InitMeshInstancesResource() {
                       0, sizeof(MeshInstanceSSBO) * kMaxVisibleObjects);
 
     editor.Execute(false);
-}
-
-void RenderResource::InitDefaultTextures() {
-    // Samplers
-    VkSamplerCreateInfo info_nearest =
-        vk::BuildSamplerCreateInfo(VK_FILTER_NEAREST);
-    CreateSampler("nearest", &info_nearest);
-
-    VkSamplerCreateInfo info_linear =
-        vk::BuildSamplerCreateInfo(VK_FILTER_LINEAR);
-    CreateSampler("linear", &info_linear);
-
-    VkSamplerCreateInfo info_hdr = vk::BuildSamplerCreateInfo(
-        VK_FILTER_LINEAR, VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE);
-    info_hdr.anisotropyEnable        = VK_TRUE;
-    info_hdr.maxAnisotropy           = rhi->max_sampler_anisotropy();
-    info_hdr.borderColor             = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    info_hdr.unnormalizedCoordinates = VK_FALSE;
-    info_hdr.compareEnable           = VK_FALSE;
-    info_hdr.compareOp               = VK_COMPARE_OP_ALWAYS;
-    info_hdr.mipmapMode              = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    info_hdr.minLod                  = 0.0f;
-    info_hdr.maxLod                  = 0.0f;
-    CreateSampler("hdr", &info_hdr);
-
-    info_hdr.minLod     = 0.0f;
-    info_hdr.maxLod     = 1000.0f;  // Use a large number here
-    info_hdr.mipLodBias = 0.0f;
-    CreateSampler("cubemap", &info_hdr);
-
-    // srgb
-    vk::TextureCreateInfo tex_info{};
-    tex_info.width  = 1;
-    tex_info.height = 1;
-    tex_info.format = VK_FORMAT_R8G8B8A8_SRGB;
-    tex_info.image_usage =
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-    tex_info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
-    tex_info.aspect_flags = VK_IMAGE_ASPECT_COLOR_BIT;
-    tex_info.sampler_name = "nearest";
-
-    // clang-format off
-    CreateTexture2D("white", &tex_info, &Color4u8::kWhite);
-    CreateTexture2D("black", &tex_info, &Color4u8::kBlack);
-    CreateTexture2D("red",   &tex_info, &Color4u8::kRed);
-    CreateTexture2D("green", &tex_info, &Color4u8::kGreen);
-    CreateTexture2D("blue",  &tex_info, &Color4u8::kBlue);
-    // clang-format on
-
-    // linear
-    tex_info.format         = VK_FORMAT_R8G8B8A8_UNORM;
-    Color4u8 normal_default = Color4u8(128, 128, 255, 255);
-    CreateTexture2D("normal_default", &tex_info, &normal_default);
-
-    // lut
-    CreateTextureHDRFromFile("lut_brdf", "textures/lut/brdf.hdr");
-
-    // cubemaps
-    tex_info.format       = VK_FORMAT_R32G32B32A32_SFLOAT;
-    tex_info.sampler_name = "cubemap";
-    Color4f gray          = Color4f(0.1f, 0.1f, 0.1f, 1.0f);
-
-    std::array<void *, 6> cubemap_empty_data = {
-        &gray, &gray, &gray, &gray, &gray, &gray,
-    };
-    CreateTextureCubemap("skybox_empty", &tex_info, cubemap_empty_data);
 }
 
 void RenderResource::Finalize() { dtor_queue_resource_.Flush(); }
@@ -302,7 +324,7 @@ vk::Texture *RenderResource::GetTexture(const std::string &name) {
     if (it == textures_.end()) {
         return nullptr;
     } else {
-        return &it->second;
+        return it->second.get();
     }
 }
 
@@ -624,6 +646,17 @@ vk::Texture *RenderResource::CreateTextureCubemapFromFile(
     return texture;
 }
 
+void RenderResource::RegisterTexture(const std::string           &name,
+                                     std::shared_ptr<vk::Texture> texture) {
+    vk::Texture *res = GetTexture(name);
+    if (res) {
+        LOG_WARNING("Register texture with an existed name {}", name);
+        return;
+    }
+
+    textures_[name] = texture;
+}
+
 vk::Texture *RenderResource::CreateTexture2D(const std::string     &name,  //
                                              vk::TextureCreateInfo *info,  //
                                              const void            *pixels) {
@@ -633,8 +666,10 @@ vk::Texture *RenderResource::CreateTexture2D(const std::string     &name,  //
         LOG_WARNING("Create texture with an existed name {}", name);
         return res;
     }
+    auto &texture_storage = textures_[name];
+    texture_storage       = std::make_shared<vk::Texture>();
 
-    vk::Texture *texture = &textures_[name];
+    vk::Texture *texture = texture_storage.get();
     rhi->AllocateTexture2D(texture, info);
     UploadTexture2D(texture, pixels, info->aspect_flags);
 
@@ -643,7 +678,6 @@ vk::Texture *RenderResource::CreateTexture2D(const std::string     &name,  //
         LOG_WARNING("Unknown sampler name {} when creating texture {}",
                     info->sampler_name, name);
     }
-    texture->sampler_name = info->sampler_name;
 
     dtor_queue_resource_.Push(
         [this, texture]() { rhi->DestroyTexture(texture); });
@@ -658,8 +692,10 @@ vk::Texture *RenderResource::CreateTextureCubemap(const std::string     &name,
         LOG_WARNING("Create texture with an existed name {}", name);
         return res;
     }
+    auto &texture_storage = textures_[name];
+    texture_storage       = std::make_shared<vk::Texture>();
 
-    vk::Texture *texture = &textures_[name];
+    vk::Texture *texture = texture_storage.get();
     rhi->AllocateTextureCubemap(texture, info);
     UploadTextureCubemap(texture, pixels, info->aspect_flags, info->mip_levels);
 
@@ -668,7 +704,6 @@ vk::Texture *RenderResource::CreateTextureCubemap(const std::string     &name,
         LOG_WARNING("Unknown sampler name {} when creating texture {}",
                     info->sampler_name, name);
     }
-    texture->sampler_name = info->sampler_name;
 
     dtor_queue_resource_.Push(
         [this, texture]() { rhi->DestroyTexture(texture); });
@@ -767,6 +802,7 @@ void RenderResource::UploadTexture2D(vk::Texture *texture, const void *pixels,
             channels = 4;
             break;
         case VK_FORMAT_R32_SFLOAT:
+        case VK_FORMAT_D32_SFLOAT:
             element_size = sizeof(float);
         case VK_FORMAT_R8_SRGB:
         case VK_FORMAT_R8_UNORM:

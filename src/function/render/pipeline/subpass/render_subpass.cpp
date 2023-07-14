@@ -7,7 +7,7 @@ namespace lumi {
 
 void RenderSubpass::CmdBindMaterial(VkCommandBuffer cmd, Material* material) {
     auto  resource = render_pass_->resource;
-    auto& extent   = render_pass_->rhi->extent();
+    auto& extent   = render_pass_->GetExtent();
 
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, material->pipeline);
 

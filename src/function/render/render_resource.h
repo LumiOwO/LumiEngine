@@ -52,6 +52,7 @@ enum GlobalBindingSlot {
     kGlobalBindingSkyboxIrradiance,
     kGlobalBindingSkyboxSpecular,
     kGlobalBindingLutBrdf,
+    kGlobalBindingShadowMapDirectional,
 
     kGlobalBindingCount
 };
@@ -90,7 +91,11 @@ struct MeshInstanceSSBO {
 class RenderResource {
 public:
     constexpr static int          kMaxVisibleObjects = 100;
-    std::vector<RenderObjectDesc> visible_object_descs{};
+
+    // reorganized render objects
+    std::unordered_map<Material*,
+                       std::unordered_map<Mesh*, std::vector<RenderObjectDesc>>>
+        visibles_drawcall_batchs{};
 
     struct {
         vk::DescriptorSet   descriptor_set{};
@@ -123,10 +128,10 @@ private:
                    kShaderTypeCount>;
     ShaderModuleCache shaders_{};
 
-    std::unordered_map<std::string, vk::Texture>               textures_{};
-    std::unordered_map<std::string, VkSampler>                 samplers_{};
-    std::unordered_map<std::string, Mesh>                      meshes_{};
-    std::unordered_map<std::string, std::shared_ptr<Material>> materials_{};
+    std::unordered_map<std::string, std::shared_ptr<vk::Texture>> textures_{};
+    std::unordered_map<std::string, VkSampler>                    samplers_{};
+    std::unordered_map<std::string, Mesh>                         meshes_{};
+    std::unordered_map<std::string, std::shared_ptr<Material>>    materials_{};
 
     vk::DescriptorAllocator   descriptor_allocator_{};
     vk::DescriptorLayoutCache descriptor_layout_cache_{};
@@ -199,6 +204,9 @@ public:
     vk::Texture* CreateTextureCubemapFromFile(const std::string& name,
                                               const fs::path&    basepath);
 
+    void RegisterTexture(const std::string&           name,
+                         std::shared_ptr<vk::Texture> texture);
+
     void LoadFromGLTFFile(const fs::path& filepath);
 
     vk::DescriptorEditor BeginEditDescriptorSet(
@@ -213,13 +221,13 @@ public:
     }
 
 private:
+    void InitDefaultTextures();
+
     void InitGlobalResource();
 
     void EditGlobalDescriptorSet(bool update_only);
 
     void InitMeshInstancesResource();
-
-    void InitDefaultTextures();
 
     bool LoadVkShaderModule(const std::string& filepath,
                             VkShaderModule*    p_shader_module);

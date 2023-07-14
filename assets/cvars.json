@@ -1,7 +1,7 @@
 {
   "debug": {
     "shading": {
-      "#options": ["Combined","Diffuse","Specular","IBL Diffuse","IBL Specular","Base Color Map","Metallic Map","Roughness Map","Normal Map","Occlusion Map","Emissive Map","F","G","D"],
+      "#options": ["Combined","Diffuse","Specular","IBL Diffuse","IBL Specular","Base Color Map","Metallic Map","Roughness Map","Normal Map","Occlusion Map","Emissive Map","F","G","D","Visibility"],
       "#value": 0
     },
     "skybox": {
@@ -11,7 +11,10 @@
   },
   "env": {
     "IBL": {
-      "intensity": 1.0
+      "intensity": {
+        "#min": 0.0,
+        "#value": 1.0
+      }
     },
     "sunlight": {
       "color": {
@@ -22,11 +25,11 @@
       "dir": {
         "#max": 1.0,
         "#min": -1.0,
-        "#value": [-0.2160000056028366,-0.5350000262260437,0.0]
+        "#value": [0.0,-1.0,1.0]
       },
       "intensity": {
         "#min": 0.0,
-        "#value": 0.5
+        "#value": 2.75
       }
     }
   },

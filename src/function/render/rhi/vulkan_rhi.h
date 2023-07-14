@@ -99,8 +99,6 @@ public:
 
     void RecreateSwapchain();
 
-    void PushDestructor(std::function<void()>&& destructor);
-
     void CreateImGuiContext(VkRenderPass render_pass, uint32_t subpass_idx);
 
     void DestroyImGuiContext();
