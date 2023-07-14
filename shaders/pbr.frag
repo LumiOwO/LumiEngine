@@ -61,8 +61,23 @@ layout(set = 1, binding = 4) uniform sampler2D lut_brdf;
 layout(set = 1, binding = 5) uniform sampler2D sunlight_shadow_map;
 
 const float kPi           = 3.141592653589793;
+const float kTwoPi        = kPi * 2.0;
 const float kOneOverPi    = 1.0 / kPi;
 const float kMinRoughness = 0.04;
+
+// From https://github.com/riccardoscalco/glsl-pcg-prng
+uint pcg(uint v) {
+    uint state = v * uint(747796405) + uint(2891336453);
+    uint word =
+        ((state >> ((state >> uint(28)) + uint(4))) ^ state) * uint(277803737);
+    return (word >> uint(22)) ^ word;
+}
+
+float rand(float p) { return float(pcg(uint(p))) / float(uint(0xffffffff)); }
+
+float rand(vec2 p) {
+    return float(pcg(pcg(uint(p.x)) + uint(p.y))) / float(uint(0xffffffff));
+}
 
 // From http://filmicworlds.com/blog/filmic-tonemapping-operators/
 vec3 Uncharted2Tonemap(vec3 color) {
@@ -137,19 +152,34 @@ float MicrofacetDistribution(float NdotH, float alpha_roughness) {
 }
 
 float ShadowMapping() {
-    vec4 clip_position = sunlight_world_to_clip * vec4(in_position, 1.0);
-    vec3 ndc_position  = clip_position.xyz / clip_position.w;
+    vec4  clip_position = sunlight_world_to_clip * vec4(in_position, 1.0);
+    vec3  ndc_position  = clip_position.xyz / clip_position.w;
+    float mesh_depth    = ndc_position.z;
 
     vec2 uv = ndc_position.xy * 0.5 + 0.5;
     // !!! Vulkan need to flip y !!!
     uv.y = 1.0 - uv.y;
 
-    float closest_depth = texture(sunlight_shadow_map, uv).r + 0.000075;
-    float current_depth = ndc_position.z;
+    ivec2 tex_size = textureSize(sunlight_shadow_map, 0);
+    float dx       = 1.5 / float(tex_size.x);
+    float dy       = 1.5 / float(tex_size.y);
 
-    // float visibility = mix(0.0, 1.0, step(current_depth, closest_depth));
-    float visibility = current_depth < closest_depth ? 1.0 : 0.0;
+    float visibility = 0.0;
+    int   count      = 0;
 
+    // Simple PCF
+    const int range = 3;
+    for (int x = -range; x <= range; x++) {
+        for (int y = -range; y <= range; y++) {
+            vec2  cur_uv    = uv + vec2(dx * x, dy * y);
+            float map_depth = texture(sunlight_shadow_map, cur_uv).r + 0.000075;
+
+            visibility += mix(0.0, 1.0, step(mesh_depth, map_depth));
+            count++;
+        }
+    }
+
+    visibility /= count;
     return visibility;
 }
 
@@ -242,11 +272,7 @@ void main() {
     vec3 specular_contrib = F * G * D / (4.0 * NdotL * NdotV);
 
     // Shadow mapping
-    // float visibility = mix(0.0, ShadowMapping(), step(0.0, NdotL));
-    float visibility = 0.0;
-    if (NdotL > 0) {
-        visibility = ShadowMapping();
-    }
+    float visibility = mix(0.0, ShadowMapping(), step(0.0, NdotL));
 
     // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
     vec3 local_coeff = NdotL * sunlight_intensity * sunlight_color.rgb;

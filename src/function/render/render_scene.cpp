@@ -1,10 +1,9 @@
 #include "render_scene.h"
 
 #include "core/scope_guard.h"
+#include "function/cvars/cvar_system.h"
 #include "material/pbr_material.h"
 #include "material/unlit_material.h"
-
-#include "function/cvars/cvar_system.h"
 
 namespace lumi {
 
@@ -13,6 +12,10 @@ void RenderScene::LoadScene() {
 
     if (!resource->CreateMeshFromObjFile("monkey",
                                          "models/monkey_smooth.obj")) {
+        LOG_ERROR("Loading .obj file failed");
+    }
+
+    if (!resource->CreateMeshFromObjFile("plane", "models/plane.obj")) {
         LOG_ERROR("Loading .obj file failed");
     }
 
@@ -57,11 +60,10 @@ void RenderScene::LoadScene() {
                                            "textures/skybox/skybox_irradiance");
     resource->CreateTextureCubemapFromFile("skybox_specular",
                                            "textures/skybox/skybox_specular");
-    
+
     resource->global.skybox_material->irradiance_cubemap_name =
         "skybox_irradiance";
-    resource->global.skybox_material->specular_cubemap_name =
-        "skybox_specular";
+    resource->global.skybox_material->specular_cubemap_name = "skybox_specular";
     resource->UpdateGlobalDescriptorSet();
 
     // mesh, textures, materials
@@ -84,16 +86,17 @@ void RenderScene::LoadScene() {
     RenderObject &helmet = renderables.emplace_back();
     helmet.mesh_name     = "DamagedHelmet";
     helmet.material_name = "DamagedHelmet_mat_0";
-    helmet.rotation = Quaternion(ToRadians(Vec3f(90, 180, 0)));
+    helmet.rotation      = Quaternion(ToRadians(Vec3f(90, 180, 0)));
     //helmet.material_name = "unlit";
 
-    RenderObject &monkey = renderables.emplace_back();
-    monkey.mesh_name     = "monkey";
-    monkey.material_name = "default";
-    monkey.position      = {0, -2, 0};
-    monkey.rotation      = Quaternion(ToRadians(Vec3f(0, 0, 0)));
+    RenderObject &plane = renderables.emplace_back();
+    plane.mesh_name     = "plane";
+    plane.material_name = "default";
+    plane.position      = {0, -1.2, 0};
+    plane.scale         = {4, 4, 4};
+    plane.rotation      = Quaternion(ToRadians(Vec3f(0, 0, 0)));
 
-    camera.position = {1.5f, 0, -1.5f};
+    camera.position   = {1.5f, 0, -1.5f};
     camera.eulers_deg = Vec3f(0, -45, 0);
 
     // TODO: camera control in scene node
@@ -120,7 +123,6 @@ void RenderScene::UpdateVisibleObjects() {
         desc.mesh     = mesh;
         desc.object   = &renderable;
     }
-
 }
 
 void RenderScene::UploadGlobalResource() {
@@ -128,12 +130,12 @@ void RenderScene::UploadGlobalResource() {
     // Update camera data staging buffer
     auto cam_data = resource->global.data.cam;
 
-    const Mat4x4f &view     = camera.view();
-    const Mat4x4f &proj     = camera.projection();
-    cam_data->view          = view;
-    cam_data->proj          = proj;
-    cam_data->proj_view     = proj * view;
-    cam_data->cam_pos       = camera.position;
+    const Mat4x4f &view = camera.view();
+    const Mat4x4f &proj = camera.projection();
+    cam_data->view      = view;
+    cam_data->proj      = proj;
+    cam_data->proj_view = proj * view;
+    cam_data->cam_pos   = camera.position;
 
     Vec3f sunlight_dir =
         cvars::GetVec3f("env.sunlight.dir").value().Normalize();
@@ -229,8 +231,8 @@ Mat4x4f RenderScene::GetSunlightWorldToClip(const Camera &camera,
     // world -> light view
     Vec3f eye =
         frustum_bbox.center() - sunlight_dir * frustum_bbox.extent().Length();
-    Vec3f   center             = frustum_bbox.center();
-    Vec3f   up                 = Vec3f::kUnitY;
+    Vec3f center = frustum_bbox.center();
+    Vec3f up     = Vec3f::kUnitY;
     // Avoid nan
     if (Cross(center - eye, up).LengthSquare() < 0.001f) {
         up = Vec3f::kUnitZ;
