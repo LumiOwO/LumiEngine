@@ -20,6 +20,7 @@
 #include "glm/gtx/euler_angles.hpp"
 #include "glm/gtx/hash.hpp"
 #include "glm/gtx/quaternion.hpp"
+#include "glm/gtx/component_wise.hpp"
 
 #ifdef _WIN32
 #pragma warning(pop)
@@ -171,6 +172,14 @@ struct Vec3f : public glm::vec3 {
 
     Vec3f Normalize() const { return glm::normalize(*this); }
 
+    Vec3f Abs() const { return glm::abs(glm::vec3(*this)); }
+
+    float Length() const { return glm::length(glm::vec3(*this)); }
+
+    float LengthSquare() const { return glm::length2(glm::vec3(*this)); }
+
+    float Sum() const { return glm::compAdd(glm::vec3(*this)); }
+
     static const Vec3f kZero;
     static const Vec3f kUnitX;
     static const Vec3f kUnitY;
@@ -220,6 +229,10 @@ constexpr Vec3f operator/(const Vec3f& a, float s) { return glm::vec3(a) / s; }
 
 constexpr Vec3f operator/(const Vec3f& a, const Vec3f& b) {
     return glm::vec3(a) / glm::vec3(b);
+}
+
+constexpr Vec3f Cross(const Vec3f& a, const Vec3f& b) {
+    return glm::cross(a, b);
 }
 
 using Color3f = Vec3f;
@@ -420,6 +433,8 @@ struct Mat3x3f : public glm::mat3x3 {
 inline constexpr Mat3x3f Mat3x3f::kZero     = Mat3x3f(0.0f);
 inline constexpr Mat3x3f Mat3x3f::kIdentity = Mat3x3f(1.0f);
 
+class BoundingBox;
+
 struct Mat4x4f : public glm::mat4x4 {
     using glm::mat4x4::mat4x4;
 
@@ -443,12 +458,37 @@ struct Mat4x4f : public glm::mat4x4 {
         return glm::translate(kIdentity, v);
     }
 
+    static Mat4x4f LookAt(const Vec3f& eye, const Vec3f& center,
+                          const Vec3f& up) {
+        return glm::lookAt(eye, center, up);
+    }
+
+    static Mat4x4f Orthographic(float left, float right, float bottom,
+                                float top, float near, float far) {
+        return glm::ortho(left, right, bottom, top, near, far);
+    }
+
     static Mat4x4f Perspective(float fovy, float aspect, float near,
                                float far) {
         return glm::perspective(fovy, aspect, near, far);
     }
 
+    static Mat4x4f PerspectiveInverse(float fovy, float aspect, float near,
+                                      float far) {
+        const float tanHalfFovy = std::tan(fovy / 2.0f);
+
+        Mat4x4f res(0.0f);
+        res[0][0] = aspect * tanHalfFovy;
+        res[1][1] = tanHalfFovy;
+        res[2][3] = -(far - near) / (far * near);
+        res[3][2] = 1.0f;
+        res[3][3] = 1.0f / near;
+        return res;
+    }
+
     Mat4x4f Transpose() const { return glm::transpose(*this); }
+
+    BoundingBox Transform(const BoundingBox& bbox) const;
 };
 
 inline constexpr Mat4x4f Mat4x4f::kZero     = Mat4x4f(0.0f);
@@ -510,6 +550,68 @@ inline Vec4f ToSRGB(const Vec4f& linear) {
     return glm::convertLinearToSRGB(linear);
 }
 
+class BoundingBox {
+private:
+    Vec3f center_ = Vec3f::kZero;
+    Vec3f extent_ = Vec3f::kZero;
+    Vec3f min_    = Vec3f(kPosInf, kPosInf, kPosInf);
+    Vec3f max_    = Vec3f(kNegInf, kNegInf, kNegInf);
+
+public:
+    BoundingBox() = default;
+
+    BoundingBox(const Vec3f& min, const Vec3f& max) {
+        min_    = min;
+        max_    = max;
+        center_ = min_ + 0.5f * (max_ - min_);
+        extent_ = center_ - min_;
+    }
+
+    const Vec3f& center() const { return center_; }
+    const Vec3f& extent() const { return extent_; }
+    const Vec3f& min() const { return min_; }
+    const Vec3f& max() const { return max_; }
+
+    void Merge(const BoundingBox& rhs) {
+        min_    = glm::min(glm::vec3(min_), glm::vec3(rhs.min_));
+        max_    = glm::max(glm::vec3(max_), glm::vec3(rhs.max_));
+        center_ = min_ + 0.5f * (max_ - min_);
+        extent_ = center_ - min_;
+    }
+
+    void Merge(const Vec3f& point) {
+        min_    = glm::min(glm::vec3(min_), glm::vec3(point));
+        max_    = glm::max(glm::vec3(max_), glm::vec3(point));
+        center_ = min_ + 0.5f * (max_ - min_);
+        extent_ = center_ - min_;
+    }
+};
+
+inline BoundingBox Mat4x4f::Transform(const BoundingBox& bbox) const {
+    constexpr int   kCorners        = 8;
+    constexpr Vec3f units[kCorners] = {
+        Vec3f(-1.0f, -1.0f, 1.0f),  Vec3f(1.0f, -1.0f, 1.0f),
+        Vec3f(1.0f, 1.0f, 1.0f),    Vec3f(-1.0f, 1.0f, 1.0f),
+        Vec3f(-1.0f, -1.0f, -1.0f), Vec3f(1.0f, -1.0f, -1.0f),
+        Vec3f(1.0f, 1.0f, -1.0f),   Vec3f(-1.0f, 1.0f, -1.0f),
+    };
+
+    BoundingBox res{};
+    // Compute and transform the corners and find new min/max bounds.
+    for (int i = 0; i < kCorners; i++) {
+        Vec3f corner_before = bbox.extent() * units[i] + bbox.center();
+        Vec4f corner_with_w = (*this) * Vec4f(corner_before, 1.0);
+        Vec3f corner        = Vec3f(corner_with_w) / corner_with_w.w;
+
+        res.Merge(corner);
+    }
+    return res;
+}
+
+inline BoundingBox operator*(const Mat4x4f& m, const BoundingBox& bbox) {
+    return m.Transform(bbox);
+}
+
 }  // namespace lumi
 
 // formatter for spdlog
@@ -567,6 +669,15 @@ inline std::ostream& operator<<(std::ostream& os, const lumi::Mat4x4f& m) {
               << "        " << m[0][3] << ", " << m[1][3] << ", "
                             << m[2][3] << ", " << m[3][3] << ")";
     // clang-format on
+}
+
+inline std::ostream& operator<<(std::ostream&            os,
+                                const lumi::BoundingBox& bbox) {
+    return os << "BoundingBox(("  //
+              << bbox.min().x << ", " << bbox.min().y << ", " << bbox.min().z
+              << ") -> ("  //
+              << bbox.max().x << ", " << bbox.max().y << ", " << bbox.max().z
+              << "))";
 }
 
 }  // namespace std

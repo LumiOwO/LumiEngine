@@ -7,7 +7,9 @@ A simple Vulkan renderer.
 
 - [ ] PBR
     - [x] Image Based Lighting (IBL)
-- [ ] (TODO) Shadow
+- [ ] Shadow
+    - [x] Simple PCF
+    - [ ] PCSS
 
 
 ## Prerequisites
@@ -41,8 +43,8 @@ Then open the Visual Studio solution in the build directory and build it manuall
 - [x] Index buffer
 - [x] Instanced rendering
 - [x] PBR
-- [ ] Shadow map
-- [ ] SSAO
+- [x] Shadow map
 - [ ] MSAA
+- [ ] SSAO
 - [ ] vsync
 - [ ] Defered shading

@@ -1,28 +1,35 @@
 {
   "debug": {
     "shading": {
-      "#options": ["Combined","Diffuse","Specular","IBL Diffuse","IBL Specular","Base Color Map","Metallic Map","Roughness Map","Normal Map","Occlusion Map","Emissive Map","F","G","D"],
+      "#options": ["Combined","Diffuse","Specular","IBL Diffuse","IBL Specular","Base Color Map","Metallic Map","Roughness Map","Normal Map","Occlusion Map","Emissive Map","F","G","D","Visibility"],
       "#value": 0
+    },
+    "skybox": {
+      "#options": ["Irradiance","Specular","None"],
+      "#value": 1
     }
   },
   "env": {
-    "skybox": {
-      "#options": ["Irradiance","Specular","None"],
-      "#value": 0
+    "IBL": {
+      "intensity": {
+        "#min": 0.0,
+        "#value": 1.0
+      }
     },
     "sunlight": {
       "color": {
+        "#advanced": true,
         "#is_color": true,
         "#value": [1.0,1.0,1.0]
       },
       "dir": {
-        "#max": 2.0,
-        "#min": -2.0,
-        "#value": [-0.6854000091552734,-0.722100019454956,0.093299999833107]
+        "#max": 1.0,
+        "#min": -1.0,
+        "#value": [-0.6850000023841858,-0.722000002861023,0.09300000220537186]
       },
       "intensity": {
         "#min": 0.0,
-        "#value": 3.0
+        "#value": 2.75
       }
     }
   },

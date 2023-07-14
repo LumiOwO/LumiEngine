@@ -17,7 +17,7 @@ private:
         kAttachmentCount
     };
 
-    vk::Texture depth_attachment_{};
+    std::shared_ptr<vk::Texture> depth_attachment_{};
 
     enum SubpassIndex {
         kSubpassMeshLighting = 0,
@@ -33,6 +33,7 @@ private:
 
     std::vector<VkFramebuffer> framebuffers_{};
     vk::DestructorQueue        dtor_queue_swapchain_{};
+    vk::DestructorQueue        dtor_queue_present_{};
 
 public:
     using RenderPass::RenderPass;
@@ -49,6 +50,8 @@ public:
 
     virtual void Finalize() override;
 
+    virtual VkExtent2D GetExtent() override;
+
     void RecreateSwapchain();
 
 protected:
@@ -63,8 +66,6 @@ protected:
     virtual void CreateFrameBuffers() override;
 
     virtual void SetClearValues() override;
-
-    virtual VkExtent2D GetExtent() override;
 
     virtual VkFramebuffer GetFramebuffer() override;
 };

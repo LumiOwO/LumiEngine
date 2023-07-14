@@ -44,6 +44,10 @@ public:
     void UpdateVisibleObjects();
 
     void UploadGlobalResource();
+
+private:
+    Mat4x4f GetSunlightWorldToClip(const Camera& camera,
+                                   const Vec3f&  sunlight_dir);
 };
 
 }  // namespace lumi

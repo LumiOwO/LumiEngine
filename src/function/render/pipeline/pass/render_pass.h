@@ -56,6 +56,8 @@ public:
 
     virtual void Finalize() = 0;
 
+    virtual VkExtent2D GetExtent() = 0;
+
 protected:
     virtual void PreInit() = 0;
 
@@ -68,8 +70,6 @@ protected:
     virtual void CreateFrameBuffers() = 0;
 
     virtual void SetClearValues() = 0;
-
-    virtual VkExtent2D GetExtent() = 0;
 
     virtual VkFramebuffer GetFramebuffer() = 0;
 };

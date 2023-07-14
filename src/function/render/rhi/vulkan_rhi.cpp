@@ -117,7 +117,7 @@ void VulkanRHI::CreateVulkanInstance() {
     allocatorInfo.instance       = instance_;
     vmaCreateAllocator(&allocatorInfo, &allocator_);
 
-    PushDestructor([this]() {
+    dtor_queue_rhi_.Push([this]() {
         vmaDestroyAllocator(allocator_);
         vkDestroyDevice(device_, nullptr);
         vkDestroySurfaceKHR(instance_, surface_, nullptr);
@@ -175,7 +175,7 @@ void VulkanRHI::CreateCommands() {
         VK_CHECK(vkAllocateCommandBuffers(device_, &cmdAllocInfo,
                                           &frame.main_command_buffer));
 
-        PushDestructor([this, &frame]() {
+        dtor_queue_rhi_.Push([this, &frame]() {
             vkDestroyCommandPool(device_, frame.command_pool, nullptr);
         });
     }
@@ -191,7 +191,7 @@ void VulkanRHI::CreateCommands() {
     VK_CHECK(vkAllocateCommandBuffers(device_, &uploadCmdAllocInfo,
                                       &upload_context_.command_buffer));
 
-    PushDestructor([this]() {
+    dtor_queue_rhi_.Push([this]() {
         vkDestroyCommandPool(device_, upload_context_.command_pool, nullptr);
     });
 }
@@ -210,7 +210,7 @@ void VulkanRHI::CreateSyncStructures() {
         VK_CHECK(vkCreateSemaphore(device_, &semaphoreCreateInfo, nullptr,
                                    &frame.render_semaphore));
 
-        PushDestructor([this, &frame]() {
+        dtor_queue_rhi_.Push([this, &frame]() {
             vkDestroyFence(device_, frame.render_fence, nullptr);
             vkDestroySemaphore(device_, frame.present_semaphore, nullptr);
             vkDestroySemaphore(device_, frame.render_semaphore, nullptr);
@@ -220,7 +220,7 @@ void VulkanRHI::CreateSyncStructures() {
     auto uploadFenceCreateInfo = vk::BuildFenceCreateInfo();
     VK_CHECK(vkCreateFence(device_, &uploadFenceCreateInfo, nullptr,
                            &upload_context_.upload_fence));
-    PushDestructor([this]() {
+    dtor_queue_rhi_.Push([this]() {
         vkDestroyFence(device_, upload_context_.upload_fence, nullptr);
     });
 }
@@ -233,10 +233,6 @@ void VulkanRHI::Finalize() {
 void VulkanRHI::RecreateSwapchain() {
     dtor_queue_swapchain_.Flush();
     CreateSwapchain();
-}
-
-void VulkanRHI::PushDestructor(std::function<void()>&& destructor) {
-    dtor_queue_rhi_.Push(std::move(destructor));
 }
 
 void VulkanRHI::ImmediateSubmit(std::function<void(VkCommandBuffer)>&& func) {
@@ -330,9 +326,11 @@ void VulkanRHI::CopyBuffer(const vk::AllocatedBuffer* src,
 void VulkanRHI::AllocateTexture2D(vk::Texture*           texture,
                                   vk::TextureCreateInfo* info) {
 
-    texture->width  = info->width;
-    texture->height = info->height;
-    texture->format = info->format;
+    texture->width        = info->width;
+    texture->height       = info->height;
+    texture->format       = info->format;
+    texture->mip_levels   = info->mip_levels;
+    texture->sampler_name = info->sampler_name;
 
     // Create VkImage
     VkExtent3D image_extent{};
@@ -340,8 +338,8 @@ void VulkanRHI::AllocateTexture2D(vk::Texture*           texture,
     image_extent.height = info->height;
     image_extent.depth  = 1;
 
-    VkImageCreateInfo img_info =
-        vk::BuildImageCreateInfo(info->format, info->image_usage, image_extent);
+    VkImageCreateInfo img_info = vk::BuildImageCreateInfo(
+        info->format, info->image_usage, image_extent, info->mip_levels, 1);
 
     VmaAllocationCreateInfo img_allocinfo{};
     img_allocinfo.usage = info->memory_usage;
@@ -358,11 +356,12 @@ void VulkanRHI::AllocateTexture2D(vk::Texture*           texture,
 }
 
 void VulkanRHI::AllocateTextureCubemap(vk::Texture*           texture,
-                                       vk::TextureCreateInfo* info,
-                                       uint32_t               mip_levels) {
-    texture->width  = info->width;
-    texture->height = info->height;
-    texture->format = info->format;
+                                       vk::TextureCreateInfo* info) {
+    texture->width        = info->width;
+    texture->height       = info->height;
+    texture->format       = info->format;
+    texture->mip_levels   = info->mip_levels;
+    texture->sampler_name = info->sampler_name;
 
     // Create VkImage
     VkExtent3D image_extent{};
@@ -370,11 +369,9 @@ void VulkanRHI::AllocateTextureCubemap(vk::Texture*           texture,
     image_extent.height = info->height;
     image_extent.depth  = 1;
 
-    VkImageCreateInfo img_info =
-        vk::BuildImageCreateInfo(info->format, info->image_usage, image_extent);
-    img_info.flags       = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-    img_info.mipLevels   = mip_levels;
-    img_info.arrayLayers = 6;
+    VkImageCreateInfo img_info = vk::BuildImageCreateInfo(
+        info->format, info->image_usage, image_extent, info->mip_levels, 6);
+    img_info.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
     VmaAllocationCreateInfo img_allocinfo{};
     img_allocinfo.usage = info->memory_usage;
@@ -388,7 +385,7 @@ void VulkanRHI::AllocateTextureCubemap(vk::Texture*           texture,
         texture->format, texture->image.image, info->aspect_flags);
     imageinfo.viewType                        = VK_IMAGE_VIEW_TYPE_CUBE;
     imageinfo.subresourceRange.baseMipLevel   = 0;
-    imageinfo.subresourceRange.levelCount     = mip_levels;
+    imageinfo.subresourceRange.levelCount     = info->mip_levels;
     imageinfo.subresourceRange.baseArrayLayer = 0;
     imageinfo.subresourceRange.layerCount     = 6;
 
@@ -591,7 +588,7 @@ void VulkanRHI::CmdGenerateMipMaps(VkCommandBuffer    cmd,         //
     int32_t mip_height = texture->height;
 
     for (uint32_t i = 1; i < mip_levels; i++) {
-        // use miplevel i - 1 to generate miplevel i 
+        // use miplevel i - 1 to generate miplevel i
         // and set i - 1 to shader_read
         barrier.subresourceRange.baseMipLevel = i - 1;
         barrier.oldLayout     = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -610,7 +607,7 @@ void VulkanRHI::CmdGenerateMipMaps(VkCommandBuffer    cmd,         //
         blit.srcSubresource.aspectMask     = aspect;
         blit.srcSubresource.mipLevel       = i - 1;
         blit.srcSubresource.baseArrayLayer = 0;
-        blit.srcSubresource.layerCount     = layers;  
+        blit.srcSubresource.layerCount     = layers;
 
         blit.dstOffsets[0] = {0, 0, 0};
         blit.dstOffsets[1] = {mip_width > 1 ? mip_width / 2 : 1,
@@ -630,10 +627,9 @@ void VulkanRHI::CmdGenerateMipMaps(VkCommandBuffer    cmd,         //
         barrier.newLayout     = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-        vkCmdPipelineBarrier(
-            cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1,
-            &barrier);  
+        vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0,
+                             nullptr, 0, nullptr, 1, &barrier);
 
         if (mip_width > 1) mip_width /= 2;
         if (mip_height > 1) mip_height /= 2;

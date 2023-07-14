@@ -1,3 +1,8 @@
+## [v0.1.2] - 2023-07-14
+- Add Boundingbox to core/math.h
+- Add directional light shadow pass
+- Add Shadow mapping with simple PCF
+
 ## [v0.1.1] - 2023-07-12
 - Bug fix: DescriptorEditor image_info address error caused by adding elements to std::vector
 - Bug fix: Pan mode movement

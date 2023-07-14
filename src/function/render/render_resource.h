@@ -24,6 +24,7 @@ struct Mesh {
     using IndexType                           = uint32_t;
     constexpr static VkIndexType kVkIndexType = VK_INDEX_TYPE_UINT32;
 
+    BoundingBox             bbox{};
     std::vector<vk::Vertex> vertices{};
     std::vector<IndexType>  indices{};
     vk::AllocatedBuffer     vertex_buffer{};
@@ -31,11 +32,12 @@ struct Mesh {
 };
 
 struct RenderObject {
-    std::string mesh_name     = "";
-    std::string material_name = "";
-    Vec3f       position      = Vec3f::kZero;
-    Quaternion  rotation      = Quaternion::kIdentity;
-    Vec3f       scale         = Vec3f::kUnitScale;
+    std::string mesh_name       = "";
+    std::string material_name   = "";
+    Vec3f       position        = Vec3f::kZero;
+    Quaternion  rotation        = Quaternion::kIdentity;
+    Vec3f       scale           = Vec3f::kUnitScale;
+    Mat4x4f     object_to_world = Mat4x4f::kIdentity;
 };
 
 struct RenderObjectDesc {
@@ -50,6 +52,7 @@ enum GlobalBindingSlot {
     kGlobalBindingSkyboxIrradiance,
     kGlobalBindingSkyboxSpecular,
     kGlobalBindingLutBrdf,
+    kGlobalBindingShadowMapDirectional,
 
     kGlobalBindingCount
 };
@@ -62,12 +65,16 @@ struct CamDataSSBO {
 };
 
 struct EnvDataSSBO {
-    Vec3f sunlight_color{};
-    float sunlight_intensity{};
-    Vec3f sunlight_dir{};
-    float _padding_sunlight_dir{};
-
+    Vec3f   sunlight_color{};
+    float   sunlight_intensity{};
+    Vec3f   sunlight_dir{};
+    float   ibl_intensity{1};
+    float   mip_levels{};
     int32_t debug_idx{};
+    float   _padding[2];
+
+    Mat4x4f sunlight_world_to_clip{};
+
 };
 
 enum MeshInstanceBindingSlot {
@@ -84,7 +91,11 @@ struct MeshInstanceSSBO {
 class RenderResource {
 public:
     constexpr static int          kMaxVisibleObjects = 100;
-    std::vector<RenderObjectDesc> visible_object_descs{};
+
+    // reorganized render objects
+    std::unordered_map<Material*,
+                       std::unordered_map<Mesh*, std::vector<RenderObjectDesc>>>
+        visibles_drawcall_batchs{};
 
     struct {
         vk::DescriptorSet   descriptor_set{};
@@ -117,10 +128,10 @@ private:
                    kShaderTypeCount>;
     ShaderModuleCache shaders_{};
 
-    std::unordered_map<std::string, vk::Texture>               textures_{};
-    std::unordered_map<std::string, VkSampler>                 samplers_{};
-    std::unordered_map<std::string, Mesh>                      meshes_{};
-    std::unordered_map<std::string, std::shared_ptr<Material>> materials_{};
+    std::unordered_map<std::string, std::shared_ptr<vk::Texture>> textures_{};
+    std::unordered_map<std::string, VkSampler>                    samplers_{};
+    std::unordered_map<std::string, Mesh>                         meshes_{};
+    std::unordered_map<std::string, std::shared_ptr<Material>>    materials_{};
 
     vk::DescriptorAllocator   descriptor_allocator_{};
     vk::DescriptorLayoutCache descriptor_layout_cache_{};
@@ -181,8 +192,7 @@ public:
 
     vk::Texture* CreateTextureCubemap(const std::string&     name,
                                       vk::TextureCreateInfo* info,
-                                      std::array<void*, 6>&  pixels,
-                                      uint32_t               mip_levels);
+                                      std::array<void*, 6>&  pixels);
 
     vk::Texture* CreateTexture2DFromFile(const std::string& name,
                                          const fs::path&    filepath,
@@ -193,6 +203,9 @@ public:
 
     vk::Texture* CreateTextureCubemapFromFile(const std::string& name,
                                               const fs::path&    basepath);
+
+    void RegisterTexture(const std::string&           name,
+                         std::shared_ptr<vk::Texture> texture);
 
     void LoadFromGLTFFile(const fs::path& filepath);
 
@@ -208,13 +221,13 @@ public:
     }
 
 private:
+    void InitDefaultTextures();
+
     void InitGlobalResource();
 
     void EditGlobalDescriptorSet(bool update_only);
 
     void InitMeshInstancesResource();
-
-    void InitDefaultTextures();
 
     bool LoadVkShaderModule(const std::string& filepath,
                             VkShaderModule*    p_shader_module);

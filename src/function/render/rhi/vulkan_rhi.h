@@ -99,8 +99,6 @@ public:
 
     void RecreateSwapchain();
 
-    void PushDestructor(std::function<void()>&& destructor);
-
     void CreateImGuiContext(VkRenderPass render_pass, uint32_t subpass_idx);
 
     void DestroyImGuiContext();
@@ -131,8 +129,7 @@ public:
     void AllocateTexture2D(vk::Texture* texture, vk::TextureCreateInfo* info);
 
     void AllocateTextureCubemap(vk::Texture*           texture,
-                                vk::TextureCreateInfo* info,
-                                uint32_t               mip_levels);
+                                vk::TextureCreateInfo* info);
 
     void DestroyTexture(vk::Texture* texture);
 

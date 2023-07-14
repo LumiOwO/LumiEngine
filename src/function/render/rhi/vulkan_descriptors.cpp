@@ -267,8 +267,6 @@ DescriptorEditor& DescriptorEditor::BindImage(  //
 
 bool DescriptorEditor::Execute(bool update_only) {
     if (!update_only) {
-        LOG_ASSERT(!bindings_.empty());
-
         // Build layout
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;

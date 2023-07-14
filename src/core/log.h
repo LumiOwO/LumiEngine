@@ -75,6 +75,16 @@ struct LogWrapper final : public ISingleton<LogWrapper> {
 #define LOG_ERROR(fmt, ...)   LOG_(ERROR, fmt, __VA_ARGS__)
 #define LOG_FATAL(fmt, ...)   LOG_(CRITICAL, fmt, __VA_ARGS__)
 
+// !!Important: Only for temporary use
+#define LOG_DEBUG_ONCE_(fmt, ...)        \
+    {                                    \
+        static bool accessed = false;    \
+        if (!accessed) {                 \
+            accessed = true;             \
+            LOG_DEBUG(fmt, __VA_ARGS__); \
+        }                                \
+    }
+
 #pragma warning(disable : 4003)
 #if defined(LUMI_FORCE_ASSERT) || !defined(NDEBUG)
 

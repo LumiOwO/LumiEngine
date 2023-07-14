@@ -3,6 +3,9 @@
 namespace lumi {
 
 void PresentPass::PreInit() {
+    depth_attachment_ = std::make_shared<vk::Texture>();
+    resource->RegisterTexture("_depth", depth_attachment_);
+
     mesh_lighting_pass_ = std::make_shared<MeshLightingSubpass>(this);
 
     skybox_pass_ = std::make_shared<SkyboxSubpass>(this);
@@ -22,6 +25,7 @@ void PresentPass::PostInit() {
 
 void PresentPass::Finalize() {
     dtor_queue_swapchain_.Flush();
+    dtor_queue_present_.Flush();
 
     imgui_pass_->DestroyImGuiContext();
 }
@@ -30,16 +34,16 @@ void PresentPass::CreateAttachmentImages() {
     auto extent = rhi->extent();
 
     vk::TextureCreateInfo info{};
-    info.width        = (int)extent.width;
-    info.height       = (int)extent.height;
+    info.width        = extent.width;
+    info.height       = extent.height;
     info.format       = VK_FORMAT_D32_SFLOAT;
     info.image_usage  = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
     info.memory_usage = VMA_MEMORY_USAGE_GPU_ONLY;
     info.aspect_flags = VK_IMAGE_ASPECT_DEPTH_BIT;
-    rhi->AllocateTexture2D(&depth_attachment_, &info);
+    rhi->AllocateTexture2D(depth_attachment_.get(), &info);
 
     dtor_queue_swapchain_.Push(
-        [this]() { rhi->DestroyTexture(&depth_attachment_); });
+        [this]() { rhi->DestroyTexture(depth_attachment_.get()); });
 }
 
 void PresentPass::CreateRenderPass() {
@@ -67,7 +71,7 @@ void PresentPass::CreateRenderPass() {
     {
         auto& desc          = attachment_descs[kAttachmentDepth];
         desc.flags          = 0;
-        desc.format         = depth_attachment_.format;
+        desc.format         = depth_attachment_->format;
         desc.samples        = VK_SAMPLE_COUNT_1_BIT;
         desc.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
         desc.storeOp        = VK_ATTACHMENT_STORE_OP_STORE;
@@ -175,7 +179,7 @@ void PresentPass::CreateRenderPass() {
     VK_CHECK(vkCreateRenderPass(rhi->device(), &render_pass_info, nullptr,
                                 &vk_render_pass_));
 
-    rhi->PushDestructor([this]() {
+    dtor_queue_present_.Push([this]() {
         vkDestroyRenderPass(rhi->device(), vk_render_pass_, nullptr);
     });
 }
@@ -190,7 +194,7 @@ void PresentPass::CreateFrameBuffers() {
     for (size_t i = 0; i < swapchain_imagecount; i++) {
         std::vector<VkImageView> attachments = {
             rhi->swapchain_image_views()[i],
-            depth_attachment_.image.image_view,
+            depth_attachment_->image.image_view,
         };
         fb_info.attachmentCount = (uint32_t)attachments.size();
         fb_info.pAttachments    = attachments.data();

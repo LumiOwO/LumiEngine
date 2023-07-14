@@ -43,18 +43,41 @@ layout(set = 1, binding = 1) readonly buffer _unused_name_environment {
     vec3  sunlight_color;
     float sunlight_intensity;
     vec3  sunlight_dir;
+    float ibl_intensity;
     float mip_levels;
+    int   debug_idx;
+    float _padding_0;
+    float _padding_1;
 
-    int debug_idx;
+    mat4 sunlight_world_to_clip;
 };
 
+// IBL
 layout(set = 1, binding = 2) uniform samplerCube skybox_irradiance;
 layout(set = 1, binding = 3) uniform samplerCube skybox_specular;
 layout(set = 1, binding = 4) uniform sampler2D lut_brdf;
 
+// Shadow maps
+layout(set = 1, binding = 5) uniform sampler2D sunlight_shadow_map;
+
 const float kPi           = 3.141592653589793;
+const float kTwoPi        = kPi * 2.0;
 const float kOneOverPi    = 1.0 / kPi;
 const float kMinRoughness = 0.04;
+
+// From https://github.com/riccardoscalco/glsl-pcg-prng
+uint pcg(uint v) {
+    uint state = v * uint(747796405) + uint(2891336453);
+    uint word =
+        ((state >> ((state >> uint(28)) + uint(4))) ^ state) * uint(277803737);
+    return (word >> uint(22)) ^ word;
+}
+
+float rand(float p) { return float(pcg(uint(p))) / float(uint(0xffffffff)); }
+
+float rand(vec2 p) {
+    return float(pcg(pcg(uint(p.x)) + uint(p.y))) / float(uint(0xffffffff));
+}
 
 // From http://filmicworlds.com/blog/filmic-tonemapping-operators/
 vec3 Uncharted2Tonemap(vec3 color) {
@@ -128,6 +151,38 @@ float MicrofacetDistribution(float NdotH, float alpha_roughness) {
     return roughness_square / (kPi * f * f);
 }
 
+float ShadowMapping() {
+    vec4  clip_position = sunlight_world_to_clip * vec4(in_position, 1.0);
+    vec3  ndc_position  = clip_position.xyz / clip_position.w;
+    float mesh_depth    = ndc_position.z;
+
+    vec2 uv = ndc_position.xy * 0.5 + 0.5;
+    // !!! Vulkan need to flip y !!!
+    uv.y = 1.0 - uv.y;
+
+    ivec2 tex_size = textureSize(sunlight_shadow_map, 0);
+    float dx       = 1.5 / float(tex_size.x);
+    float dy       = 1.5 / float(tex_size.y);
+
+    float visibility = 0.0;
+    int   count      = 0;
+
+    // Simple PCF
+    const int range = 3;
+    for (int x = -range; x <= range; x++) {
+        for (int y = -range; y <= range; y++) {
+            vec2  cur_uv    = uv + vec2(dx * x, dy * y);
+            float map_depth = texture(sunlight_shadow_map, cur_uv).r + 0.000075;
+
+            visibility += mix(0.0, 1.0, step(mesh_depth, map_depth));
+            count++;
+        }
+    }
+
+    visibility /= count;
+    return visibility;
+}
+
 void main() {
     // --- Get texture values ---
     vec4 base_color_tex_value =
@@ -196,9 +251,7 @@ void main() {
     vec3 v = normalize(cam_pos - in_position);  // view dir from surface
     vec3 l = normalize(-sunlight_dir);          // light dir from surface
     vec3 h = normalize(l + v);                  // Half vector
-    // vec3 reflection = -normalize(reflect(v, n));
-    // reflection.y *= -1.0;
-    vec3 reflection = -normalize(reflect(v, n));
+    vec3 reflection = reflect(-v, n);
 
     float NdotL = clamp(dot(n, l), 0.001, 1.0);
     float NdotV = clamp(abs(dot(n, v)), 0.001, 1.0);
@@ -217,12 +270,15 @@ void main() {
     // Calculation of analytical lighting contribution
     vec3 diffuse_contrib  = (1.0 - F) * diffuse_color * kOneOverPi;
     vec3 specular_contrib = F * G * D / (4.0 * NdotL * NdotV);
+
+    // Shadow mapping
+    float visibility = mix(0.0, ShadowMapping(), step(0.0, NdotL));
+
     // Obtain final intensity as reflectance (BRDF) scaled by the energy of the light (cosine law)
-    // vec3  local_color        = NdotL * (diffuse_contrib + specular_contrib);
-    // // float sunlight_intensity = sunlight_color.w;
-    // local_color *= sunlight_color.rgb * sunlight_intensity;
     vec3 local_coeff = NdotL * sunlight_intensity * sunlight_color.rgb;
-    vec3 local_color = local_coeff * (diffuse_contrib + specular_contrib);
+    vec3 local_color =
+        visibility * local_coeff * (diffuse_contrib + specular_contrib);
+
     color += local_color;
 
     // --- Environment illumination (IBL) ---
@@ -230,14 +286,14 @@ void main() {
     float lod = (perceptual_roughness * mip_levels);
 
     vec3 ibl_diffuse_light = Tonemap(texture(skybox_irradiance, n).rgb);
-    vec3 ibl_diffuse       = ibl_diffuse_light * diffuse_color;
+    vec3 ibl_diffuse = ibl_intensity * ibl_diffuse_light * diffuse_color;
 
     vec2 ibl_brdf =
         (texture(lut_brdf, vec2(NdotV, 1.0 - perceptual_roughness))).rg;
     vec3 ibl_specular_light =
         Tonemap(textureLod(skybox_specular, reflection, lod).rgb);
-    vec3 ibl_specular =
-        ibl_specular_light * (specular_color * ibl_brdf.x + ibl_brdf.y);
+    vec3 ibl_specular = ibl_intensity * ibl_specular_light *
+                        (specular_color * ibl_brdf.x + ibl_brdf.y);
 
     vec3 ibl_color = ibl_diffuse + ibl_specular;
     color += ibl_color;
@@ -295,6 +351,9 @@ void main() {
             break;
         case 13:
             out_color = vec4(D);
+            break;
+        case 14:
+            out_color = vec4(visibility);
             break;
         default:
             break;
